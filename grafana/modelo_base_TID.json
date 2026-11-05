@@ -1,0 +1,500 @@
+{
+  "apiVersion": "dashboard.grafana.app/v2",
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "adjj9g4"
+  },
+  "spec": {
+    "annotations": [
+      {
+        "kind": "AnnotationQuery",
+        "spec": {
+          "builtIn": true,
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "query": {
+            "datasource": {
+              "name": "-- Grafana --"
+            },
+            "group": "grafana",
+            "kind": "DataQuery",
+            "spec": {},
+            "version": "v0"
+          }
+        }
+      }
+    ],
+    "cursorSync": "Off",
+    "description": "Relatório mensal de disponibilidade (usinas, transmissão e aplicações) a partir do banco de disponibilidade (API no Zabbix server)",
+    "editable": true,
+    "elements": {
+      "panel-2": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "yesoreyeram-infinity-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "__INFINITY_UID__"
+                      },
+                      "spec": {
+                        "type": "json",
+                        "source": "url",
+                        "format": "table",
+                        "parser": "backend",
+                        "url": "__API_URL__/resumo?mes=${__from:date:YYYY-MM}&relatorios=tid-usinas,tid-aplicacoes&unidade_grupo=tid-aplicacoes",
+                        "url_options": {
+                          "method": "GET",
+                          "data": "",
+                          "params": [],
+                          "headers": []
+                        },
+                        "root_selector": "",
+                        "columns": [],
+                        "filters": []
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 2,
+          "links": [],
+          "title": "Resumo",
+          "vizConfig": {
+            "group": "marcusolsson-dynamictext-panel",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "afterRender": "",
+                "content": "{{#with data.[0]}}\n<div class=\"kpis\">\n  <div class=\"kpi\">\n    <div class=\"titulo\">Disponibilidade Geral</div>\n    <table>\n      <thead><tr><th>Disponibilidade</th><th>Mês</th><th>Ano</th></tr></thead>\n      <tbody><tr>\n        <td class=\"valor{{#if (abaixo GERAL)}} alerta{{/if}}{{#if (nulo GERAL)}} sem{{/if}}\">{{pct GERAL}}</td>\n        <td>{{MES}}</td>\n        <td>{{ANO}}</td>\n      </tr></tbody>\n    </table>\n  </div>\n  <div class=\"kpi\">\n    <div class=\"titulo\">Disponibilidade geral usinas</div>\n    <table>\n      <thead><tr><th>Disponibilidade</th><th>Mês</th><th>Ano</th></tr></thead>\n      <tbody><tr>\n        <td class=\"valor{{#if (abaixo GERACAO)}} alerta{{/if}}{{#if (nulo GERACAO)}} sem{{/if}}\">{{pct GERACAO}}</td>\n        <td>{{MES}}</td>\n        <td>{{ANO}}</td>\n      </tr></tbody>\n    </table>\n  </div>\n  <div class=\"kpi\">\n    <div class=\"titulo\">Disponibilidade geral usinas transmissão</div>\n    <table>\n      <thead><tr><th>Disponibilidade</th><th>Mês</th><th>Ano</th></tr></thead>\n      <tbody><tr>\n        <td class=\"valor{{#if (abaixo TRANSMISSAO)}} alerta{{/if}}{{#if (nulo TRANSMISSAO)}} sem{{/if}}\">{{pct TRANSMISSAO}}</td>\n        <td>{{MES}}</td>\n        <td>{{ANO}}</td>\n      </tr></tbody>\n    </table>\n  </div>\n  <div class=\"kpi\">\n    <div class=\"titulo\">Disponibilidade Geral das Aplicações</div>\n    <table>\n      <thead><tr><th>Disponibilidade</th><th>Mês</th><th>Ano</th></tr></thead>\n      <tbody><tr>\n        <td class=\"valor{{#if (abaixo TID_APLICACOES)}} alerta{{/if}}{{#if (nulo TID_APLICACOES)}} sem{{/if}}\">{{pct TID_APLICACOES}}</td>\n        <td>{{MES}}</td>\n        <td>{{ANO}}</td>\n      </tr></tbody>\n    </table>\n  </div>\n</div>\n{{/with}}",
+                "contentPartials": [],
+                "defaultContent": "<div class=\"vazio\">Sem dados para o período selecionado.</div>",
+                "editor": {
+                  "format": "auto",
+                  "language": "html"
+                },
+                "editors": [
+                  "helpers",
+                  "styles"
+                ],
+                "externalStyles": [],
+                "helpers": "const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho',\n               'Agosto','Setembro','Outubro','Novembro','Dezembro'];\n\ncontext.handlebars.registerHelper('pct', v => {\n  if (v === null || v === undefined || v === '' || isNaN(Number(v))) return '—';\n  const n = Number(v);\n  if (n >= 100) return '100%';\n  return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';\n});\ncontext.handlebars.registerHelper('abaixo', v => v !== null && v !== undefined && Number(v) < 100);\ncontext.handlebars.registerHelper('nulo', v => v === null || v === undefined || v === '' || isNaN(Number(v)));\ncontext.handlebars.registerHelper('mes', v => MESES[Number(v) - 1] || v);\n",
+                "renderMode": "allRows",
+                "styles": "\n.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; height: 100%; }\n@media (max-width: 900px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }\n.kpi { border: 1px solid rgba(128,128,128,.25); border-top: 3px solid #00AAFF; border-radius: 6px;\n       padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }\n.kpi .titulo { font-size: 12px; font-weight: 600; opacity: .8; }\n.kpi table { width: 100%; border-collapse: collapse; }\n.kpi th { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; opacity: .6;\n          text-align: center; font-weight: 600; padding-bottom: 2px; }\n.kpi td { text-align: center; font-size: 15px; font-variant-numeric: tabular-nums; }\n.kpi td.valor { font-size: 26px; font-weight: 700; color: #73BF69; }\n.kpi td.valor.alerta { color: #F2495C; }\n.kpi td.valor.sem { color: inherit; opacity: .45; }\n",
+                "wrap": false
+              }
+            },
+            "version": "6.3.0"
+          }
+        }
+      },
+      "panel-3": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "yesoreyeram-infinity-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "__INFINITY_UID__"
+                      },
+                      "spec": {
+                        "type": "json",
+                        "source": "url",
+                        "format": "table",
+                        "parser": "backend",
+                        "url": "__API_URL__/disponibilidade?relatorio=tid-usinas&grupo=GERACAO&mes=${__from:date:YYYY-MM}&formato=powerplant&cliente=${cliente}",
+                        "url_options": {
+                          "method": "GET",
+                          "data": "",
+                          "params": [],
+                          "headers": []
+                        },
+                        "root_selector": "",
+                        "columns": [],
+                        "filters": []
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 3,
+          "links": [],
+          "title": "Disponibilidade Usinas",
+          "vizConfig": {
+            "group": "marcusolsson-dynamictext-panel",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "afterRender": "",
+                "content": "<table class=\"disp\">\n  <thead>\n    <tr>\n      <th>Name</th>\n      <th class=\"num\">Disponibilidade</th>\n    </tr>\n  </thead>\n  <tbody>\n    {{#each data}}\n    <tr class=\"{{#if (abaixo DISPONIBILIDADE)}}alerta{{/if}}\">\n      <td>{{NAME}}</td>\n      <td class=\"num\">{{pct DISPONIBILIDADE}}</td>\n    </tr>\n    {{/each}}\n  </tbody>\n</table>",
+                "contentPartials": [],
+                "defaultContent": "<div class=\"vazio\">Sem dados para o período selecionado.</div>",
+                "editor": {
+                  "format": "auto",
+                  "language": "html"
+                },
+                "editors": [
+                  "helpers",
+                  "styles"
+                ],
+                "externalStyles": [],
+                "helpers": "const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho',\n               'Agosto','Setembro','Outubro','Novembro','Dezembro'];\n\ncontext.handlebars.registerHelper('pct', v => {\n  if (v === null || v === undefined || v === '' || isNaN(Number(v))) return '—';\n  const n = Number(v);\n  if (n >= 100) return '100%';\n  return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';\n});\ncontext.handlebars.registerHelper('abaixo', v => v !== null && v !== undefined && Number(v) < 100);\ncontext.handlebars.registerHelper('nulo', v => v === null || v === undefined || v === '' || isNaN(Number(v)));\ncontext.handlebars.registerHelper('mes', v => MESES[Number(v) - 1] || v);\n",
+                "renderMode": "allRows",
+                "styles": "\n.disp { width: 100%; border-collapse: collapse; font-size: 13px; }\n.disp th { text-align: left; font-weight: 600; text-transform: uppercase; font-size: 11px;\n           letter-spacing: .04em; opacity: .75; padding: 6px 8px;\n           border-bottom: 2px solid #00AAFF; }\n.disp td { padding: 5px 8px; border-bottom: 1px solid rgba(128,128,128,.18); }\n.disp tbody tr:nth-child(even) { background: rgba(128,128,128,.06); }\n.disp .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }\n.disp .centro { text-align: center; }\n.disp tr.alerta td { color: #F2495C; }\n.disp tr.alerta td:first-child { box-shadow: inset 3px 0 0 #F2495C; }\n.vazio { opacity: .6; padding: 8px; }\n",
+                "wrap": false
+              }
+            },
+            "version": "6.3.0"
+          }
+        }
+      },
+      "panel-4": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "yesoreyeram-infinity-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "__INFINITY_UID__"
+                      },
+                      "spec": {
+                        "type": "json",
+                        "source": "url",
+                        "format": "table",
+                        "parser": "backend",
+                        "url": "__API_URL__/disponibilidade?relatorio=tid-usinas&grupo=TRANSMISSAO&mes=${__from:date:YYYY-MM}&formato=powerplant&cliente=${cliente}",
+                        "url_options": {
+                          "method": "GET",
+                          "data": "",
+                          "params": [],
+                          "headers": []
+                        },
+                        "root_selector": "",
+                        "columns": [],
+                        "filters": []
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 4,
+          "links": [],
+          "title": "Disponibilidade Usinas Transmissão",
+          "vizConfig": {
+            "group": "marcusolsson-dynamictext-panel",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "afterRender": "",
+                "content": "<table class=\"disp\">\n  <thead>\n    <tr>\n      <th>Name</th>\n      <th class=\"num\">Disponibilidade</th>\n    </tr>\n  </thead>\n  <tbody>\n    {{#each data}}\n    <tr class=\"{{#if (abaixo DISPONIBILIDADE)}}alerta{{/if}}\">\n      <td>{{NAME}}</td>\n      <td class=\"num\">{{pct DISPONIBILIDADE}}</td>\n    </tr>\n    {{/each}}\n  </tbody>\n</table>",
+                "contentPartials": [],
+                "defaultContent": "<div class=\"vazio\">Sem dados para o período selecionado.</div>",
+                "editor": {
+                  "format": "auto",
+                  "language": "html"
+                },
+                "editors": [
+                  "helpers",
+                  "styles"
+                ],
+                "externalStyles": [],
+                "helpers": "const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho',\n               'Agosto','Setembro','Outubro','Novembro','Dezembro'];\n\ncontext.handlebars.registerHelper('pct', v => {\n  if (v === null || v === undefined || v === '' || isNaN(Number(v))) return '—';\n  const n = Number(v);\n  if (n >= 100) return '100%';\n  return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';\n});\ncontext.handlebars.registerHelper('abaixo', v => v !== null && v !== undefined && Number(v) < 100);\ncontext.handlebars.registerHelper('nulo', v => v === null || v === undefined || v === '' || isNaN(Number(v)));\ncontext.handlebars.registerHelper('mes', v => MESES[Number(v) - 1] || v);\n",
+                "renderMode": "allRows",
+                "styles": "\n.disp { width: 100%; border-collapse: collapse; font-size: 13px; }\n.disp th { text-align: left; font-weight: 600; text-transform: uppercase; font-size: 11px;\n           letter-spacing: .04em; opacity: .75; padding: 6px 8px;\n           border-bottom: 2px solid #00AAFF; }\n.disp td { padding: 5px 8px; border-bottom: 1px solid rgba(128,128,128,.18); }\n.disp tbody tr:nth-child(even) { background: rgba(128,128,128,.06); }\n.disp .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }\n.disp .centro { text-align: center; }\n.disp tr.alerta td { color: #F2495C; }\n.disp tr.alerta td:first-child { box-shadow: inset 3px 0 0 #F2495C; }\n.vazio { opacity: .6; padding: 8px; }\n",
+                "wrap": false
+              }
+            },
+            "version": "6.3.0"
+          }
+        }
+      },
+      "panel-5": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "yesoreyeram-infinity-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "__INFINITY_UID__"
+                      },
+                      "spec": {
+                        "type": "json",
+                        "source": "url",
+                        "format": "table",
+                        "parser": "backend",
+                        "url": "__API_URL__/disponibilidade?relatorio=tid-aplicacoes&por=grupo&mes=${__from:date:YYYY-MM}",
+                        "url_options": {
+                          "method": "GET",
+                          "data": "",
+                          "params": [],
+                          "headers": []
+                        },
+                        "root_selector": "",
+                        "columns": [],
+                        "filters": []
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 5,
+          "links": [],
+          "title": "Disponibilidade aplicações",
+          "vizConfig": {
+            "group": "marcusolsson-dynamictext-panel",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "afterRender": "",
+                "content": "<table class=\"disp\">\n  <thead>\n    <tr>\n      <th>Name</th>\n      <th class=\"centro\">Mês</th>\n      <th class=\"centro\">Ano</th>\n      <th class=\"num\">Disponibilidade</th>\n    </tr>\n  </thead>\n  <tbody>\n    {{#each data}}\n    <tr class=\"{{#if (abaixo DISPONIBILIDADE)}}alerta{{/if}}\">\n      <td>{{NAME}}</td>\n      <td class=\"centro\">{{mes MES}}</td>\n      <td class=\"centro\">{{ANO}}</td>\n      <td class=\"num\">{{pct DISPONIBILIDADE}}</td>\n    </tr>\n    {{/each}}\n  </tbody>\n</table>",
+                "contentPartials": [],
+                "defaultContent": "<div class=\"vazio\">Sem dados para o período selecionado.</div>",
+                "editor": {
+                  "format": "auto",
+                  "language": "html"
+                },
+                "editors": [
+                  "helpers",
+                  "styles"
+                ],
+                "externalStyles": [],
+                "helpers": "const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho',\n               'Agosto','Setembro','Outubro','Novembro','Dezembro'];\n\ncontext.handlebars.registerHelper('pct', v => {\n  if (v === null || v === undefined || v === '' || isNaN(Number(v))) return '—';\n  const n = Number(v);\n  if (n >= 100) return '100%';\n  return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';\n});\ncontext.handlebars.registerHelper('abaixo', v => v !== null && v !== undefined && Number(v) < 100);\ncontext.handlebars.registerHelper('nulo', v => v === null || v === undefined || v === '' || isNaN(Number(v)));\ncontext.handlebars.registerHelper('mes', v => MESES[Number(v) - 1] || v);\n",
+                "renderMode": "allRows",
+                "styles": "\n.disp { width: 100%; border-collapse: collapse; font-size: 13px; }\n.disp th { text-align: left; font-weight: 600; text-transform: uppercase; font-size: 11px;\n           letter-spacing: .04em; opacity: .75; padding: 6px 8px;\n           border-bottom: 2px solid #00AAFF; }\n.disp td { padding: 5px 8px; border-bottom: 1px solid rgba(128,128,128,.18); }\n.disp tbody tr:nth-child(even) { background: rgba(128,128,128,.06); }\n.disp .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }\n.disp .centro { text-align: center; }\n.disp tr.alerta td { color: #F2495C; }\n.disp tr.alerta td:first-child { box-shadow: inset 3px 0 0 #F2495C; }\n.vazio { opacity: .6; padding: 8px; }\n",
+                "wrap": false
+              }
+            },
+            "version": "6.3.0"
+          }
+        }
+      }
+    },
+    "layout": {
+      "kind": "GridLayout",
+      "spec": {
+        "items": [
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-2"
+              },
+              "height": 5,
+              "width": 24,
+              "x": 0,
+              "y": 0
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-3"
+              },
+              "height": 27,
+              "width": 8,
+              "x": 0,
+              "y": 5
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-4"
+              },
+              "height": 21,
+              "width": 9,
+              "x": 8,
+              "y": 5
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-5"
+              },
+              "height": 12,
+              "width": 7,
+              "x": 17,
+              "y": 5
+            }
+          }
+        ]
+      }
+    },
+    "links": [],
+    "liveNow": false,
+    "preload": false,
+    "tags": [
+      "ENGIE",
+      "disponibilidade",
+      "sqlite"
+    ],
+    "timeSettings": {
+      "autoRefresh": "",
+      "autoRefreshIntervals": [],
+      "fiscalYearStartMonth": 0,
+      "from": "now/M",
+      "hideTimepicker": false,
+      "timezone": "America/Sao_Paulo",
+      "to": "now/M"
+    },
+    "title": "ENGIE - Disponibilidade Geral - TID",
+    "variables": [
+      {
+        "kind": "TextVariable",
+        "spec": {
+          "current": {
+            "text": "ENGIE",
+            "value": "ENGIE"
+          },
+          "hide": "dontHide",
+          "label": "Cliente",
+          "name": "cliente",
+          "query": "ENGIE",
+          "skipUrlSync": false
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,8 @@
+[Unit]
+Description=Relatórios ENGIE - atualização do banco
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/relatorios-engie/env
+WorkingDirectory=/etc/relatorios-engie
+ExecStart=/etc/relatorios-engie/atualizar.sh

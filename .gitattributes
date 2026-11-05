@@ -1,0 +1,5 @@
+# Texto sempre com LF: bash e systemd não aceitam CRLF, mesmo com o clone feito no Windows
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.xlsx binary
+*.pdf binary

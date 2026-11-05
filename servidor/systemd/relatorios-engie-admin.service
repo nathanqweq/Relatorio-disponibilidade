@@ -1,0 +1,14 @@
+[Unit]
+Description=Relatórios ENGIE - painel de administração
+After=network-online.target
+
+[Service]
+EnvironmentFile=/etc/relatorios-engie/env
+Environment=ADMIN_PORT=8098
+WorkingDirectory=/etc/relatorios-engie
+ExecStart=/usr/bin/python3 /etc/relatorios-engie/admin.py servidor
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

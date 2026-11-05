@@ -1,0 +1,9 @@
+[Unit]
+Description=Relatórios ENGIE - parcial diário às 05:30
+
+[Timer]
+OnCalendar=*-*-* 05:30 America/Sao_Paulo
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,9 @@
+[Unit]
+Description=Relatórios ENGIE - parcial diário do mês de cada relatório
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/relatorios-engie/env
+WorkingDirectory=/etc/relatorios-engie
+ExecStart=/usr/bin/python3 /etc/relatorios-engie/relatorio.py parciais

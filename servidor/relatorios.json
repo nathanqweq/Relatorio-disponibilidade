@@ -1,0 +1,359 @@
+{
+  "tid": {
+    "cliente": "ENGIE",
+    "titulo": "Disponibilidade Geral - TID",
+    "subtitulo": "Switch, Usinas e Aplicação",
+    "arquivo": "ENGIE - Disponibilidade Geral {mes_nome} {ano}- TID_V2",
+    "meta": 99.9,
+    "secoes": [
+      {
+        "tipo": "indicadores",
+        "titulo": "Resumo do mês",
+        "relatorios": [
+          "tid-usinas",
+          "tid-aplicacoes"
+        ],
+        "unidade_grupo": [
+          "tid-aplicacoes"
+        ],
+        "indicadores": [
+          {
+            "rotulo": "Disponibilidade Geral",
+            "chave": "GERAL"
+          },
+          {
+            "rotulo": "Disponibilidade geral usinas",
+            "chave": "GERACAO"
+          },
+          {
+            "rotulo": "Disponibilidade geral usinas transmissão",
+            "chave": "TRANSMISSAO"
+          },
+          {
+            "rotulo": "Disponibilidade Geral das Aplicações",
+            "chave": "TID_APLICACOES"
+          }
+        ]
+      },
+      {
+        "tipo": "tabela",
+        "titulo": "Disponibilidade Usinas",
+        "relatorio": "tid-usinas",
+        "grupo": "GERACAO",
+        "formato": "powerplant"
+      },
+      {
+        "tipo": "tabela",
+        "titulo": "Disponibilidade Usinas Transmissão",
+        "relatorio": "tid-usinas",
+        "grupo": "TRANSMISSAO",
+        "formato": "powerplant"
+      },
+      {
+        "tipo": "tabela",
+        "titulo": "Disponibilidade Aplicações",
+        "relatorio": "tid-aplicacoes",
+        "por": "grupo"
+      }
+    ]
+  },
+  "switches-ga-ne": {
+    "cliente": "ENGIE",
+    "titulo": "Disponibilidade Switches Core GA e NE",
+    "subtitulo": "Switches das localidades Gralha Azul e Novo Estado",
+    "arquivo": "ENGIE - Disponibilidade Switches Core GA e NE - {mes_nome} {ano}",
+    "meta": 99.9,
+    "secoes": [
+      {
+        "tipo": "indicadores",
+        "titulo": "Resumo do mês",
+        "indicadores": [
+          {
+            "rotulo": "Disponibilidade Gralha Azul",
+            "chave": "GA",
+            "relatorio": "tid-usinas",
+            "prefixo": "GA"
+          },
+          {
+            "rotulo": "Disponibilidade Novo Estado",
+            "chave": "NE",
+            "relatorio": "tid-usinas",
+            "prefixo": "NE"
+          }
+        ]
+      },
+      {
+        "tipo": "tabela",
+        "titulo": "Gralha Azul - Disponibilidade",
+        "relatorio": "tid-usinas",
+        "prefixo": "GA",
+        "formato": "powerplant"
+      },
+      {
+        "tipo": "tabela",
+        "titulo": "Novo Estado - Disponibilidade",
+        "relatorio": "tid-usinas",
+        "prefixo": "NE",
+        "formato": "powerplant"
+      }
+    ]
+  },
+  "links-internet": {
+    "cliente": "ENGIE",
+    "titulo": "ENGIE LINKS - Disponibilidade",
+    "subtitulo": "Disponibilidade dos links de internet por operadora",
+    "arquivo": "ENGIE LINKS - Disponibilidade {mes_nome} {ano}",
+    "meta": 99.9,
+    "secoes": [
+      {
+        "tipo": "indicadores",
+        "titulo": "Resumo do mês",
+        "indicadores": [
+          {
+            "rotulo": "Disponibilidade geral dos links de internet",
+            "chave": "GERAL",
+            "relatorio": "links-internet"
+          }
+        ]
+      },
+      {
+        "tipo": "grupos",
+        "titulo": "Disponibilidade por operadora",
+        "relatorio": "links-internet",
+        "rotulo": "Link",
+        "descricao": true,
+        "ordem": "nome"
+      }
+    ]
+  },
+  "links-bgp": {
+    "cliente": "ENGIE",
+    "titulo": "ENGIE LINKS (BGP) - Disponibilidade",
+    "subtitulo": "Disponibilidade das sessões BGP dos links MPLS por operadora",
+    "arquivo": "ENGIE LINKS BGP - Disponibilidade {mes_nome} {ano}",
+    "meta": 99.9,
+    "secoes": [
+      {
+        "tipo": "indicadores",
+        "titulo": "Resumo do mês",
+        "indicadores": [
+          {
+            "rotulo": "Disponibilidade Link BGP Embratel",
+            "chave": "EBT",
+            "relatorio": "links-mpls",
+            "grupo": "EBT"
+          },
+          {
+            "rotulo": "Disponibilidade Links BGP Oi",
+            "chave": "OI",
+            "relatorio": "links-mpls",
+            "grupo": "OI"
+          }
+        ]
+      },
+      {
+        "tipo": "grupos",
+        "titulo": "Sessões BGP por operadora",
+        "relatorio": "links-mpls",
+        "formato": "apos_on",
+        "rotulo": "BGP / Host",
+        "ordem": "nome",
+        "grupos": [
+          "EBT",
+          "OI"
+        ],
+        "rotulos": {
+          "EBT": "Embratel",
+          "OI": "Oi"
+        }
+      }
+    ]
+  },
+  "firewalls-sci": {
+    "cliente": "ENGIE",
+    "titulo": "Disponibilidade Mensal ENGIE - EBE OPE - FIREWALLS SCII",
+    "subtitulo": "Disponibilidade mensal dos Firewalls da rede industrial Engie",
+    "arquivo": "Disponibilidade_Mensal_ENGIE - EBE OPE - FIREWALLS SCII {mes_nome} {ano}",
+    "meta": 99.9,
+    "secoes": [
+      {
+        "tipo": "indicadores",
+        "titulo": "Resumo do mês",
+        "indicadores": [
+          {
+            "rotulo": "Disponibilidade geral dos Firewalls SCI",
+            "chave": "GERAL",
+            "relatorio": "firewalls-sci"
+          }
+        ]
+      },
+      {
+        "tipo": "tabela",
+        "titulo": "Firewalls Sci",
+        "relatorio": "firewalls-sci"
+      }
+    ]
+  },
+  "switches-ga-ne-mensal": {
+    "cliente": "ENGIE",
+    "titulo": "Relatório Mensal Links Transmissão",
+    "subtitulo": "Switches Core das localidades Gralha Azul e Novo Estado",
+    "arquivo": "Engie_Report_Mensal_{mes_nome}_de_{ano}_Switches_Core_GA_e_NE",
+    "meta": 99.9,
+    "secoes": [
+      {
+        "tipo": "indicadores",
+        "titulo": "Resumo do mês",
+        "indicadores": [
+          {
+            "rotulo": "Disponibilidade Gralha Azul",
+            "chave": "GA",
+            "relatorio": "tid-usinas",
+            "prefixo": "GA"
+          },
+          {
+            "rotulo": "Disponibilidade Novo Estado",
+            "chave": "NE",
+            "relatorio": "tid-usinas",
+            "prefixo": "NE"
+          }
+        ]
+      },
+      {
+        "tipo": "tabela",
+        "titulo": "1.1 Percentual de disponibilidade dos Links de Transmissão Gralha Azul",
+        "relatorio": "tid-usinas",
+        "prefixo": "GA",
+        "formato": "powerplant"
+      },
+      {
+        "tipo": "evidencias",
+        "titulo": "1.1.1 Evidências disponibilidade",
+        "relatorio": "tid-usinas",
+        "prefixo": "GA",
+        "formato": "powerplant"
+      },
+      {
+        "tipo": "tabela",
+        "titulo": "1.2 Percentual de disponibilidade dos Links de Transmissão NE",
+        "relatorio": "tid-usinas",
+        "prefixo": "NE",
+        "formato": "powerplant"
+      },
+      {
+        "tipo": "evidencias",
+        "titulo": "1.2.1 Evidências disponibilidade",
+        "relatorio": "tid-usinas",
+        "prefixo": "NE",
+        "formato": "powerplant"
+      }
+    ]
+  },
+  "firewalls-sci-mensal": {
+    "cliente": "ENGIE",
+    "titulo": "Relatório Mensal - Firewalls SCI",
+    "subtitulo": "Relatório mensal do NOC para os recursos monitorados",
+    "arquivo": "Engie_Report_Mensal_{mes_nome}_de_{ano}_FIREWALLS_SCI",
+    "meta": 99.9,
+    "secoes": [
+      {
+        "tipo": "indicadores",
+        "titulo": "Resumo do mês",
+        "indicadores": [
+          {
+            "rotulo": "Disponibilidade geral dos Firewalls SCI",
+            "chave": "GERAL",
+            "relatorio": "firewalls-sci"
+          }
+        ]
+      },
+      {
+        "tipo": "tabela",
+        "titulo": "Detalhamento dos dispositivos monitorados",
+        "relatorio": "firewalls-sci"
+      },
+      {
+        "tipo": "evidencias",
+        "titulo": "Evidências disponibilidade",
+        "relatorio": "firewalls-sci"
+      }
+    ]
+  },
+  "operadoras-mensal": {
+    "cliente": "ENGIE",
+    "titulo": "Relatório Mensal - Disponibilidades Operadoras",
+    "subtitulo": "Links de internet e links MPLS por operadora",
+    "arquivo": "Engie_Report_Mensal_{mes_nome}_de_{ano}_-_Disponibilidades_Operadoras",
+    "meta": 99.9,
+    "secoes": [
+      {
+        "tipo": "indicadores",
+        "titulo": "Resumo do mês",
+        "indicadores": [
+          {
+            "rotulo": "Disponibilidade geral dos links de internet",
+            "chave": "INTERNET",
+            "relatorio": "links-internet"
+          },
+          {
+            "rotulo": "Disponibilidade links MPLS Embratel",
+            "chave": "EBT",
+            "relatorio": "links-mpls",
+            "grupo": "EBT"
+          },
+          {
+            "rotulo": "Disponibilidade links MPLS Oi",
+            "chave": "OI",
+            "relatorio": "links-mpls",
+            "grupo": "OI"
+          }
+        ]
+      },
+      {
+        "tipo": "chamados",
+        "titulo": "1. Acionamentos no mês — links de internet",
+        "relatorio": "links-internet"
+      },
+      {
+        "tipo": "grupos",
+        "titulo": "2. Percentual de disponibilidade dos links de internet por operadora",
+        "relatorio": "links-internet",
+        "rotulo": "Link",
+        "descricao": true,
+        "ordem": "nome",
+        "evidencias": true,
+        "titulo_evidencias": "Evidências disponibilidade dos links"
+      },
+      {
+        "tipo": "chamados",
+        "titulo": "3. Acionamentos no mês — links MPLS",
+        "relatorio": "links-mpls",
+        "formato": "apos_on"
+      },
+      {
+        "tipo": "tabela",
+        "titulo": "4. Top 10 links MPLS do mês",
+        "relatorio": "links-mpls",
+        "formato": "apos_on",
+        "limite": 10
+      },
+      {
+        "tipo": "grupos",
+        "titulo": "5. Percentual de disponibilidade dos links MPLS",
+        "relatorio": "links-mpls",
+        "formato": "apos_on",
+        "rotulo": "BGP / Host",
+        "grupos": [
+          "EBT",
+          "OI"
+        ],
+        "rotulos": {
+          "EBT": "Embratel",
+          "OI": "Oi"
+        },
+        "evidencias": true,
+        "titulo_evidencias": "Evidências disponibilidade dos links MPLS"
+      }
+    ]
+  }
+}

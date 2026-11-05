@@ -1,0 +1,14 @@
+[Unit]
+Description=Relatórios ENGIE - API de disponibilidade
+After=network-online.target
+
+[Service]
+EnvironmentFile=/etc/relatorios-engie/env
+Environment=API_PORT=8099
+WorkingDirectory=/etc/relatorios-engie
+ExecStart=/usr/bin/python3 /etc/relatorios-engie/api.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

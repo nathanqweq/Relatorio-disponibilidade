@@ -1,0 +1,712 @@
+{
+  "apiVersion": "dashboard.grafana.app/v2",
+  "kind": "Dashboard",
+  "metadata": {
+    "name": "adjj9g4"
+  },
+  "spec": {
+    "annotations": [
+      {
+        "kind": "AnnotationQuery",
+        "spec": {
+          "builtIn": true,
+          "enable": true,
+          "hide": true,
+          "iconColor": "rgba(0, 211, 255, 1)",
+          "name": "Annotations & Alerts",
+          "query": {
+            "datasource": {
+              "name": "-- Grafana --"
+            },
+            "group": "grafana",
+            "kind": "DataQuery",
+            "spec": {},
+            "version": "v0"
+          }
+        }
+      }
+    ],
+    "cursorSync": "Off",
+    "description": "Relatório mensal de disponibilidade (usinas, transmissão e aplicações) a partir do banco de disponibilidade (API no Zabbix server)",
+    "editable": true,
+    "elements": {
+      "panel-2": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "yesoreyeram-infinity-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "dg2gfvwh9s0sgb"
+                      },
+                      "spec": {
+                        "type": "json",
+                        "source": "url",
+                        "format": "table",
+                        "parser": "backend",
+                        "url": "__API_URL__/resumo?de=${__from:date:YYYY-MM-DD}&ate=${__to:date:YYYY-MM-DD}&relatorios=tid-usinas,tid-aplicacoes&unidade_grupo=tid-aplicacoes",
+                        "url_options": {
+                          "method": "GET",
+                          "data": "",
+                          "params": [],
+                          "headers": []
+                        },
+                        "root_selector": "",
+                        "columns": [],
+                        "filters": []
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 2,
+          "links": [],
+          "title": "Resumo",
+          "vizConfig": {
+            "group": "marcusolsson-dynamictext-panel",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "afterRender": "",
+                "content": "{{#with data.[0]}}\n<div class=\"kpis\">\n  <div class=\"kpi\">\n    <div class=\"titulo\">Disponibilidade Geral</div>\n    <table>\n      <thead><tr><th>Disponibilidade</th><th>Mês</th><th>Ano</th></tr></thead>\n      <tbody><tr>\n        <td class=\"valor{{#if (abaixo GERAL)}} alerta{{/if}}{{#if (nulo GERAL)}} sem{{/if}}\">{{pct GERAL}}</td>\n        <td>{{MES}}</td>\n        <td>{{ANO}}</td>\n      </tr></tbody>\n    </table>\n  </div>\n  <div class=\"kpi\">\n    <div class=\"titulo\">Disponibilidade geral usinas</div>\n    <table>\n      <thead><tr><th>Disponibilidade</th><th>Mês</th><th>Ano</th></tr></thead>\n      <tbody><tr>\n        <td class=\"valor{{#if (abaixo GERACAO)}} alerta{{/if}}{{#if (nulo GERACAO)}} sem{{/if}}\">{{pct GERACAO}}</td>\n        <td>{{MES}}</td>\n        <td>{{ANO}}</td>\n      </tr></tbody>\n    </table>\n  </div>\n  <div class=\"kpi\">\n    <div class=\"titulo\">Disponibilidade geral usinas transmissão</div>\n    <table>\n      <thead><tr><th>Disponibilidade</th><th>Mês</th><th>Ano</th></tr></thead>\n      <tbody><tr>\n        <td class=\"valor{{#if (abaixo TRANSMISSAO)}} alerta{{/if}}{{#if (nulo TRANSMISSAO)}} sem{{/if}}\">{{pct TRANSMISSAO}}</td>\n        <td>{{MES}}</td>\n        <td>{{ANO}}</td>\n      </tr></tbody>\n    </table>\n  </div>\n  <div class=\"kpi\">\n    <div class=\"titulo\">Disponibilidade Geral das Aplicações</div>\n    <table>\n      <thead><tr><th>Disponibilidade</th><th>Mês</th><th>Ano</th></tr></thead>\n      <tbody><tr>\n        <td class=\"valor{{#if (abaixo TID_APLICACOES)}} alerta{{/if}}{{#if (nulo TID_APLICACOES)}} sem{{/if}}\">{{pct TID_APLICACOES}}</td>\n        <td>{{MES}}</td>\n        <td>{{ANO}}</td>\n      </tr></tbody>\n    </table>\n  </div>\n</div>\n{{/with}}",
+                "contentPartials": [],
+                "defaultContent": "<div class=\"vazio\">Sem dados para o período selecionado.</div>",
+                "editor": {
+                  "format": "auto",
+                  "language": "html"
+                },
+                "editors": [
+                  "helpers",
+                  "styles"
+                ],
+                "externalStyles": [],
+                "helpers": "const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho',\n               'Agosto','Setembro','Outubro','Novembro','Dezembro'];\n\ncontext.handlebars.registerHelper('pct', v => {\n  if (v === null || v === undefined || v === '' || isNaN(Number(v))) return '—';\n  const n = Number(v);\n  if (n >= 100) return '100%';\n  return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';\n});\ncontext.handlebars.registerHelper('abaixo', v => v !== null && v !== undefined && Number(v) < 100);\ncontext.handlebars.registerHelper('nulo', v => v === null || v === undefined || v === '' || isNaN(Number(v)));\ncontext.handlebars.registerHelper('mes', v => MESES[Number(v) - 1] || v);\n",
+                "renderMode": "allRows",
+                "styles": "\n.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; height: 100%; }\n@media (max-width: 900px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }\n.kpi { border: 1px solid rgba(128,128,128,.25); border-top: 3px solid #00AAFF; border-radius: 6px;\n       padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }\n.kpi .titulo { font-size: 12px; font-weight: 600; opacity: .8; }\n.kpi table { width: 100%; border-collapse: collapse; }\n.kpi th { font-size: 10px; text-transform: uppercase; letter-spacing: .04em; opacity: .6;\n          text-align: center; font-weight: 600; padding-bottom: 2px; }\n.kpi td { text-align: center; font-size: 15px; font-variant-numeric: tabular-nums; }\n.kpi td.valor { font-size: 26px; font-weight: 700; color: #73BF69; }\n.kpi td.valor.alerta { color: #F2495C; }\n.kpi td.valor.sem { color: inherit; opacity: .45; }\n",
+                "wrap": false
+              }
+            },
+            "version": "6.3.0"
+          }
+        }
+      },
+      "panel-3": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "yesoreyeram-infinity-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "dg2gfvwh9s0sgb"
+                      },
+                      "spec": {
+                        "type": "json",
+                        "source": "url",
+                        "format": "table",
+                        "parser": "backend",
+                        "url": "__API_URL__/disponibilidade?relatorio=tid-usinas&grupo=GERACAO&de=${__from:date:YYYY-MM-DD}&ate=${__to:date:YYYY-MM-DD}&formato=powerplant&cliente=${cliente}",
+                        "url_options": {
+                          "method": "GET",
+                          "data": "",
+                          "params": [],
+                          "headers": []
+                        },
+                        "root_selector": "",
+                        "columns": [],
+                        "filters": []
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 3,
+          "links": [],
+          "title": "Disponibilidade Usinas",
+          "vizConfig": {
+            "group": "marcusolsson-dynamictext-panel",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "afterRender": "",
+                "content": "<table class=\"disp\">\n  <thead><tr><th>Usina</th><th class=\"num\">Disponibilidade</th><th class=\"num\">Tempo fora</th><th class=\"num\">Quedas</th><th class=\"num\">Chamados</th></tr></thead>\n  <tbody>\n  {{#each data}}\n    <tr class=\"{{classe DISPONIBILIDADE}}\">\n      <td>{{NAME}}</td>\n      <td class=\"num pct\">{{pct DISPONIBILIDADE}}</td><td class=\"num\">{{dur SEGUNDOS_FORA}}</td><td class=\"num\">{{INCIDENTES}}</td><td class=\"num\">{{CHAMADOS}}</td>\n    </tr>\n  {{/each}}\n  </tbody>\n</table>",
+                "contentPartials": [],
+                "defaultContent": "<div class=\"vazio\">Sem dados para o período selecionado.</div>",
+                "editor": {
+                  "format": "auto",
+                  "language": "html"
+                },
+                "editors": [
+                  "helpers",
+                  "styles"
+                ],
+                "externalStyles": [],
+                "helpers": "const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho',\n               'Agosto','Setembro','Outubro','Novembro','Dezembro'];\nconst META = 99.9;\nconst num = v => (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v);\nconst fmtPct = n => n === null ? '—' : (n >= 100 ? '100%' :\n  (Math.floor(n * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%');\nconst fmtDur = s => {\n  s = Math.round(Number(s) || 0);\n  if (!s) return '—';\n  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);\n  return (d ? d + 'd ' : '') + (d || h ? h + 'h ' : '') + m + 'min';\n};\ncontext.handlebars.registerHelper('pct', v => fmtPct(num(v)));\ncontext.handlebars.registerHelper('dur', v => fmtDur(v));\ncontext.handlebars.registerHelper('durmin', v => fmtDur(Number(v || 0) * 60));\ncontext.handlebars.registerHelper('classe', v => {\n  const n = num(v);\n  return n === null ? 'sem' : n >= 100 ? 'ok' : n >= META ? 'atencao' : 'critico';\n});\ncontext.handlebars.registerHelper('mes', v => MESES[Number(v) - 1] || v);\ncontext.handlebars.registerHelper('resumo', data => {\n  const linhas = (data || []).filter(l => num(l.DISPONIBILIDADE) !== null);\n  const media = linhas.length ? linhas.reduce((a, l) => a + Number(l.DISPONIBILIDADE), 0) / linhas.length : null;\n  return {\n    media, links: (data || []).length,\n    operadoras: new Set((data || []).map(l => l.GRUPO)).size,\n    comQueda: linhas.filter(l => Number(l.SEGUNDOS_FORA) > 0).length,\n    abaixoMeta: linhas.filter(l => Number(l.DISPONIBILIDADE) < META).length,\n    fora: (data || []).reduce((a, l) => a + Number(l.SEGUNDOS_FORA || 0), 0),\n    quedas: (data || []).reduce((a, l) => a + Number(l.INCIDENTES || 0), 0),\n    chamados: (data || []).reduce((a, l) => a + Number(l.CHAMADOS || 0), 0),\n    mesNome: data && data[0] ? MESES[Number(data[0].MES) - 1] + ' ' + data[0].ANO : '',\n  };\n});\n\ncontext.handlebars.registerHelper('eq', (a, b) => a === b);\ncontext.handlebars.registerHelper('top', (data, n) => (data || []).slice(0, n));\ncontext.handlebars.registerHelper('prefixo', (data, p) => (data || []).filter(l => (l.ITEM || '').toUpperCase().startsWith(p)));\ncontext.handlebars.registerHelper('mediaDisp', rows => {\n  const v = (rows || []).map(l => num(l.DISPONIBILIDADE)).filter(x => x !== null);\n  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;\n});\ncontext.handlebars.registerHelper('soma', (rows, campo) => (rows || []).reduce((a, l) => a + Number(l[campo] || 0), 0));\n",
+                "renderMode": "allRows",
+                "styles": "\n.kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }\n@media (max-width: 1000px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }\n.kpi { border: 1px solid rgba(128,128,128,.25); border-top: 3px solid #00AAFF; border-radius: 6px; padding: 10px 12px; }\n.kpi .t { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; opacity: .7; font-weight: 600; }\n.kpi .v { font-size: 28px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }\n.kpi .s { font-size: 12px; opacity: .65; margin-top: 2px; }\n.ops { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }\n.op { border: 1px solid rgba(128,128,128,.25); border-left: 4px solid #73BF69; border-radius: 6px; padding: 8px 10px; }\n.op .n { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.op .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }\n.op .s { font-size: 11px; opacity: .65; }\n.ok .v { color: #73BF69; } .atencao .v { color: #FF9830; } .critico .v { color: #F2495C; } .sem .v { opacity: .45; }\n.op.ok { border-left-color: #73BF69; } .op.atencao { border-left-color: #FF9830; } .op.critico { border-left-color: #F2495C; }\n.op.sem { border-left-color: rgba(128,128,128,.5); }\n.disp { width: 100%; border-collapse: collapse; font-size: 13px; }\n.disp th { text-align: left; font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: .04em;\n           opacity: .75; padding: 6px 8px; border-bottom: 2px solid #00AAFF; position: sticky; top: 0;\n           background: var(--background-primary, #181b1f); }\n.disp td { padding: 5px 8px; border-bottom: 1px solid rgba(128,128,128,.18); vertical-align: top; }\n.disp tbody tr:nth-child(even) { background: rgba(128,128,128,.06); }\n.disp .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }\n.disp td.num.pct { font-weight: 700; }\n.disp .desc { opacity: .7; font-size: 12px; }\n.disp tr.ok td.pct { color: #73BF69; } .disp tr.atencao td.pct { color: #FF9830; }\n.disp tr.critico td.pct { color: #F2495C; }\n.disp tr.atencao td:first-child { box-shadow: inset 3px 0 0 #FF9830; }\n.disp tr.critico td:first-child { box-shadow: inset 3px 0 0 #F2495C; }\n.aberto { color: #F2495C; font-weight: 600; }\n.legenda { font-size: 11px; opacity: .6; margin-top: 8px; }\n.vazio { opacity: .6; padding: 8px; }\n\n.duas-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }\n.reg { font-weight: 700; font-size: 14px; margin: 6px 0 4px; }\n.reg .v { margin-left: 8px; } .reg.ok .v { color: #73BF69; } .reg.atencao .v { color: #FF9830; } .reg.critico .v { color: #F2495C; }\n.disp td.centro, .disp th.centro { text-align: center; }\n.disp tr.exp td { opacity: .55; } .selo { font-size: 10px; padding: 1px 5px; border-radius: 3px; border: 1px solid rgba(128,128,128,.5); white-space: nowrap; }\n",
+                "wrap": false
+              }
+            },
+            "version": "6.3.0"
+          }
+        }
+      },
+      "panel-4": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "yesoreyeram-infinity-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "dg2gfvwh9s0sgb"
+                      },
+                      "spec": {
+                        "type": "json",
+                        "source": "url",
+                        "format": "table",
+                        "parser": "backend",
+                        "url": "__API_URL__/disponibilidade?relatorio=tid-usinas&grupo=TRANSMISSAO&de=${__from:date:YYYY-MM-DD}&ate=${__to:date:YYYY-MM-DD}&formato=powerplant&cliente=${cliente}",
+                        "url_options": {
+                          "method": "GET",
+                          "data": "",
+                          "params": [],
+                          "headers": []
+                        },
+                        "root_selector": "",
+                        "columns": [],
+                        "filters": []
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 4,
+          "links": [],
+          "title": "Disponibilidade Usinas Transmissão",
+          "vizConfig": {
+            "group": "marcusolsson-dynamictext-panel",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "afterRender": "",
+                "content": "<table class=\"disp\">\n  <thead><tr><th>Usina</th><th class=\"num\">Disponibilidade</th><th class=\"num\">Tempo fora</th><th class=\"num\">Quedas</th><th class=\"num\">Chamados</th></tr></thead>\n  <tbody>\n  {{#each data}}\n    <tr class=\"{{classe DISPONIBILIDADE}}\">\n      <td>{{NAME}}</td>\n      <td class=\"num pct\">{{pct DISPONIBILIDADE}}</td><td class=\"num\">{{dur SEGUNDOS_FORA}}</td><td class=\"num\">{{INCIDENTES}}</td><td class=\"num\">{{CHAMADOS}}</td>\n    </tr>\n  {{/each}}\n  </tbody>\n</table>",
+                "contentPartials": [],
+                "defaultContent": "<div class=\"vazio\">Sem dados para o período selecionado.</div>",
+                "editor": {
+                  "format": "auto",
+                  "language": "html"
+                },
+                "editors": [
+                  "helpers",
+                  "styles"
+                ],
+                "externalStyles": [],
+                "helpers": "const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho',\n               'Agosto','Setembro','Outubro','Novembro','Dezembro'];\nconst META = 99.9;\nconst num = v => (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v);\nconst fmtPct = n => n === null ? '—' : (n >= 100 ? '100%' :\n  (Math.floor(n * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%');\nconst fmtDur = s => {\n  s = Math.round(Number(s) || 0);\n  if (!s) return '—';\n  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);\n  return (d ? d + 'd ' : '') + (d || h ? h + 'h ' : '') + m + 'min';\n};\ncontext.handlebars.registerHelper('pct', v => fmtPct(num(v)));\ncontext.handlebars.registerHelper('dur', v => fmtDur(v));\ncontext.handlebars.registerHelper('durmin', v => fmtDur(Number(v || 0) * 60));\ncontext.handlebars.registerHelper('classe', v => {\n  const n = num(v);\n  return n === null ? 'sem' : n >= 100 ? 'ok' : n >= META ? 'atencao' : 'critico';\n});\ncontext.handlebars.registerHelper('mes', v => MESES[Number(v) - 1] || v);\ncontext.handlebars.registerHelper('resumo', data => {\n  const linhas = (data || []).filter(l => num(l.DISPONIBILIDADE) !== null);\n  const media = linhas.length ? linhas.reduce((a, l) => a + Number(l.DISPONIBILIDADE), 0) / linhas.length : null;\n  return {\n    media, links: (data || []).length,\n    operadoras: new Set((data || []).map(l => l.GRUPO)).size,\n    comQueda: linhas.filter(l => Number(l.SEGUNDOS_FORA) > 0).length,\n    abaixoMeta: linhas.filter(l => Number(l.DISPONIBILIDADE) < META).length,\n    fora: (data || []).reduce((a, l) => a + Number(l.SEGUNDOS_FORA || 0), 0),\n    quedas: (data || []).reduce((a, l) => a + Number(l.INCIDENTES || 0), 0),\n    chamados: (data || []).reduce((a, l) => a + Number(l.CHAMADOS || 0), 0),\n    mesNome: data && data[0] ? MESES[Number(data[0].MES) - 1] + ' ' + data[0].ANO : '',\n  };\n});\n\ncontext.handlebars.registerHelper('eq', (a, b) => a === b);\ncontext.handlebars.registerHelper('top', (data, n) => (data || []).slice(0, n));\ncontext.handlebars.registerHelper('prefixo', (data, p) => (data || []).filter(l => (l.ITEM || '').toUpperCase().startsWith(p)));\ncontext.handlebars.registerHelper('mediaDisp', rows => {\n  const v = (rows || []).map(l => num(l.DISPONIBILIDADE)).filter(x => x !== null);\n  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;\n});\ncontext.handlebars.registerHelper('soma', (rows, campo) => (rows || []).reduce((a, l) => a + Number(l[campo] || 0), 0));\n",
+                "renderMode": "allRows",
+                "styles": "\n.kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }\n@media (max-width: 1000px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }\n.kpi { border: 1px solid rgba(128,128,128,.25); border-top: 3px solid #00AAFF; border-radius: 6px; padding: 10px 12px; }\n.kpi .t { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; opacity: .7; font-weight: 600; }\n.kpi .v { font-size: 28px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }\n.kpi .s { font-size: 12px; opacity: .65; margin-top: 2px; }\n.ops { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }\n.op { border: 1px solid rgba(128,128,128,.25); border-left: 4px solid #73BF69; border-radius: 6px; padding: 8px 10px; }\n.op .n { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.op .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }\n.op .s { font-size: 11px; opacity: .65; }\n.ok .v { color: #73BF69; } .atencao .v { color: #FF9830; } .critico .v { color: #F2495C; } .sem .v { opacity: .45; }\n.op.ok { border-left-color: #73BF69; } .op.atencao { border-left-color: #FF9830; } .op.critico { border-left-color: #F2495C; }\n.op.sem { border-left-color: rgba(128,128,128,.5); }\n.disp { width: 100%; border-collapse: collapse; font-size: 13px; }\n.disp th { text-align: left; font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: .04em;\n           opacity: .75; padding: 6px 8px; border-bottom: 2px solid #00AAFF; position: sticky; top: 0;\n           background: var(--background-primary, #181b1f); }\n.disp td { padding: 5px 8px; border-bottom: 1px solid rgba(128,128,128,.18); vertical-align: top; }\n.disp tbody tr:nth-child(even) { background: rgba(128,128,128,.06); }\n.disp .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }\n.disp td.num.pct { font-weight: 700; }\n.disp .desc { opacity: .7; font-size: 12px; }\n.disp tr.ok td.pct { color: #73BF69; } .disp tr.atencao td.pct { color: #FF9830; }\n.disp tr.critico td.pct { color: #F2495C; }\n.disp tr.atencao td:first-child { box-shadow: inset 3px 0 0 #FF9830; }\n.disp tr.critico td:first-child { box-shadow: inset 3px 0 0 #F2495C; }\n.aberto { color: #F2495C; font-weight: 600; }\n.legenda { font-size: 11px; opacity: .6; margin-top: 8px; }\n.vazio { opacity: .6; padding: 8px; }\n\n.duas-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }\n.reg { font-weight: 700; font-size: 14px; margin: 6px 0 4px; }\n.reg .v { margin-left: 8px; } .reg.ok .v { color: #73BF69; } .reg.atencao .v { color: #FF9830; } .reg.critico .v { color: #F2495C; }\n.disp td.centro, .disp th.centro { text-align: center; }\n.disp tr.exp td { opacity: .55; } .selo { font-size: 10px; padding: 1px 5px; border-radius: 3px; border: 1px solid rgba(128,128,128,.5); white-space: nowrap; }\n",
+                "wrap": false
+              }
+            },
+            "version": "6.3.0"
+          }
+        }
+      },
+      "panel-5": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "yesoreyeram-infinity-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "dg2gfvwh9s0sgb"
+                      },
+                      "spec": {
+                        "type": "json",
+                        "source": "url",
+                        "format": "table",
+                        "parser": "backend",
+                        "url": "__API_URL__/disponibilidade?relatorio=tid-aplicacoes&por=grupo&de=${__from:date:YYYY-MM-DD}&ate=${__to:date:YYYY-MM-DD}",
+                        "url_options": {
+                          "method": "GET",
+                          "data": "",
+                          "params": [],
+                          "headers": []
+                        },
+                        "root_selector": "",
+                        "columns": [],
+                        "filters": []
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "",
+          "id": 5,
+          "links": [],
+          "title": "Disponibilidade aplicações",
+          "vizConfig": {
+            "group": "marcusolsson-dynamictext-panel",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "afterRender": "",
+                "content": "<table class=\"disp\">\n  <thead><tr><th>Aplicação</th><th class=\"num\">Disponibilidade</th><th class=\"num\">Tempo fora</th><th class=\"num\">Quedas</th><th class=\"num\">Chamados</th></tr></thead>\n  <tbody>\n  {{#each data}}\n    <tr class=\"{{classe DISPONIBILIDADE}}\">\n      <td>{{NAME}}</td>\n      <td class=\"num pct\">{{pct DISPONIBILIDADE}}</td><td class=\"num\">{{dur SEGUNDOS_FORA}}</td><td class=\"num\">{{INCIDENTES}}</td><td class=\"num\">{{CHAMADOS}}</td>\n    </tr>\n  {{/each}}\n  </tbody>\n</table>",
+                "contentPartials": [],
+                "defaultContent": "<div class=\"vazio\">Sem dados para o período selecionado.</div>",
+                "editor": {
+                  "format": "auto",
+                  "language": "html"
+                },
+                "editors": [
+                  "helpers",
+                  "styles"
+                ],
+                "externalStyles": [],
+                "helpers": "const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho',\n               'Agosto','Setembro','Outubro','Novembro','Dezembro'];\nconst META = 99.9;\nconst num = v => (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v);\nconst fmtPct = n => n === null ? '—' : (n >= 100 ? '100%' :\n  (Math.floor(n * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%');\nconst fmtDur = s => {\n  s = Math.round(Number(s) || 0);\n  if (!s) return '—';\n  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);\n  return (d ? d + 'd ' : '') + (d || h ? h + 'h ' : '') + m + 'min';\n};\ncontext.handlebars.registerHelper('pct', v => fmtPct(num(v)));\ncontext.handlebars.registerHelper('dur', v => fmtDur(v));\ncontext.handlebars.registerHelper('durmin', v => fmtDur(Number(v || 0) * 60));\ncontext.handlebars.registerHelper('classe', v => {\n  const n = num(v);\n  return n === null ? 'sem' : n >= 100 ? 'ok' : n >= META ? 'atencao' : 'critico';\n});\ncontext.handlebars.registerHelper('mes', v => MESES[Number(v) - 1] || v);\ncontext.handlebars.registerHelper('resumo', data => {\n  const linhas = (data || []).filter(l => num(l.DISPONIBILIDADE) !== null);\n  const media = linhas.length ? linhas.reduce((a, l) => a + Number(l.DISPONIBILIDADE), 0) / linhas.length : null;\n  return {\n    media, links: (data || []).length,\n    operadoras: new Set((data || []).map(l => l.GRUPO)).size,\n    comQueda: linhas.filter(l => Number(l.SEGUNDOS_FORA) > 0).length,\n    abaixoMeta: linhas.filter(l => Number(l.DISPONIBILIDADE) < META).length,\n    fora: (data || []).reduce((a, l) => a + Number(l.SEGUNDOS_FORA || 0), 0),\n    quedas: (data || []).reduce((a, l) => a + Number(l.INCIDENTES || 0), 0),\n    chamados: (data || []).reduce((a, l) => a + Number(l.CHAMADOS || 0), 0),\n    mesNome: data && data[0] ? MESES[Number(data[0].MES) - 1] + ' ' + data[0].ANO : '',\n  };\n});\n\ncontext.handlebars.registerHelper('eq', (a, b) => a === b);\ncontext.handlebars.registerHelper('top', (data, n) => (data || []).slice(0, n));\ncontext.handlebars.registerHelper('prefixo', (data, p) => (data || []).filter(l => (l.ITEM || '').toUpperCase().startsWith(p)));\ncontext.handlebars.registerHelper('mediaDisp', rows => {\n  const v = (rows || []).map(l => num(l.DISPONIBILIDADE)).filter(x => x !== null);\n  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;\n});\ncontext.handlebars.registerHelper('soma', (rows, campo) => (rows || []).reduce((a, l) => a + Number(l[campo] || 0), 0));\n",
+                "renderMode": "allRows",
+                "styles": "\n.kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }\n@media (max-width: 1000px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }\n.kpi { border: 1px solid rgba(128,128,128,.25); border-top: 3px solid #00AAFF; border-radius: 6px; padding: 10px 12px; }\n.kpi .t { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; opacity: .7; font-weight: 600; }\n.kpi .v { font-size: 28px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }\n.kpi .s { font-size: 12px; opacity: .65; margin-top: 2px; }\n.ops { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }\n.op { border: 1px solid rgba(128,128,128,.25); border-left: 4px solid #73BF69; border-radius: 6px; padding: 8px 10px; }\n.op .n { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.op .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }\n.op .s { font-size: 11px; opacity: .65; }\n.ok .v { color: #73BF69; } .atencao .v { color: #FF9830; } .critico .v { color: #F2495C; } .sem .v { opacity: .45; }\n.op.ok { border-left-color: #73BF69; } .op.atencao { border-left-color: #FF9830; } .op.critico { border-left-color: #F2495C; }\n.op.sem { border-left-color: rgba(128,128,128,.5); }\n.disp { width: 100%; border-collapse: collapse; font-size: 13px; }\n.disp th { text-align: left; font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: .04em;\n           opacity: .75; padding: 6px 8px; border-bottom: 2px solid #00AAFF; position: sticky; top: 0;\n           background: var(--background-primary, #181b1f); }\n.disp td { padding: 5px 8px; border-bottom: 1px solid rgba(128,128,128,.18); vertical-align: top; }\n.disp tbody tr:nth-child(even) { background: rgba(128,128,128,.06); }\n.disp .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }\n.disp td.num.pct { font-weight: 700; }\n.disp .desc { opacity: .7; font-size: 12px; }\n.disp tr.ok td.pct { color: #73BF69; } .disp tr.atencao td.pct { color: #FF9830; }\n.disp tr.critico td.pct { color: #F2495C; }\n.disp tr.atencao td:first-child { box-shadow: inset 3px 0 0 #FF9830; }\n.disp tr.critico td:first-child { box-shadow: inset 3px 0 0 #F2495C; }\n.aberto { color: #F2495C; font-weight: 600; }\n.legenda { font-size: 11px; opacity: .6; margin-top: 8px; }\n.vazio { opacity: .6; padding: 8px; }\n\n.duas-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }\n.reg { font-weight: 700; font-size: 14px; margin: 6px 0 4px; }\n.reg .v { margin-left: 8px; } .reg.ok .v { color: #73BF69; } .reg.atencao .v { color: #FF9830; } .reg.critico .v { color: #F2495C; }\n.disp td.centro, .disp th.centro { text-align: center; }\n.disp tr.exp td { opacity: .55; } .selo { font-size: 10px; padding: 1px 5px; border-radius: 3px; border: 1px solid rgba(128,128,128,.5); white-space: nowrap; }\n",
+                "wrap": false
+              }
+            },
+            "version": "6.3.0"
+          }
+        }
+      },
+      "panel-6": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "yesoreyeram-infinity-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "dg2gfvwh9s0sgb"
+                      },
+                      "spec": {
+                        "type": "json",
+                        "source": "url",
+                        "format": "table",
+                        "parser": "backend",
+                        "url": "__API_URL__/disponibilidade?relatorio=tid-usinas&prefixo=GA,NE&de=${__from:date:YYYY-MM-DD}&ate=${__to:date:YYYY-MM-DD}&formato=powerplant&cliente=${cliente}",
+                        "url_options": {
+                          "method": "GET",
+                          "data": "",
+                          "params": [],
+                          "headers": []
+                        },
+                        "root_selector": "",
+                        "columns": [],
+                        "filters": []
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Recorte de Gralha Azul e Novo Estado (relatórios Switches Core GA e NE)",
+          "id": 6,
+          "links": [],
+          "title": "Switches Core GA e NE",
+          "vizConfig": {
+            "group": "marcusolsson-dynamictext-panel",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "afterRender": "",
+                "content": "<div class=\"duas-col\"><div><div class=\"reg {{classe (mediaDisp (prefixo data \"GA\"))}}\">Gralha Azul<span class=\"v\">{{pct (mediaDisp (prefixo data \"GA\"))}}</span></div><table class=\"disp\">\n  <thead><tr><th>Usina</th><th class=\"num\">Disponibilidade</th><th class=\"num\">Tempo fora</th><th class=\"num\">Quedas</th><th class=\"num\">Chamados</th></tr></thead>\n  <tbody>\n  {{#each (prefixo data \"GA\")}}\n    <tr class=\"{{classe DISPONIBILIDADE}}\">\n      <td>{{NAME}}</td>\n      <td class=\"num pct\">{{pct DISPONIBILIDADE}}</td><td class=\"num\">{{dur SEGUNDOS_FORA}}</td><td class=\"num\">{{INCIDENTES}}</td><td class=\"num\">{{CHAMADOS}}</td>\n    </tr>\n  {{/each}}\n  </tbody>\n</table></div><div><div class=\"reg {{classe (mediaDisp (prefixo data \"NE\"))}}\">Novo Estado<span class=\"v\">{{pct (mediaDisp (prefixo data \"NE\"))}}</span></div><table class=\"disp\">\n  <thead><tr><th>Usina</th><th class=\"num\">Disponibilidade</th><th class=\"num\">Tempo fora</th><th class=\"num\">Quedas</th><th class=\"num\">Chamados</th></tr></thead>\n  <tbody>\n  {{#each (prefixo data \"NE\")}}\n    <tr class=\"{{classe DISPONIBILIDADE}}\">\n      <td>{{NAME}}</td>\n      <td class=\"num pct\">{{pct DISPONIBILIDADE}}</td><td class=\"num\">{{dur SEGUNDOS_FORA}}</td><td class=\"num\">{{INCIDENTES}}</td><td class=\"num\">{{CHAMADOS}}</td>\n    </tr>\n  {{/each}}\n  </tbody>\n</table></div></div>",
+                "contentPartials": [],
+                "defaultContent": "<div class=\"vazio\">Sem dados para o período selecionado.</div>",
+                "editor": {
+                  "format": "auto",
+                  "language": "html"
+                },
+                "editors": [
+                  "helpers",
+                  "styles"
+                ],
+                "externalStyles": [],
+                "helpers": "const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho',\n               'Agosto','Setembro','Outubro','Novembro','Dezembro'];\nconst META = 99.9;\nconst num = v => (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v);\nconst fmtPct = n => n === null ? '—' : (n >= 100 ? '100%' :\n  (Math.floor(n * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%');\nconst fmtDur = s => {\n  s = Math.round(Number(s) || 0);\n  if (!s) return '—';\n  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);\n  return (d ? d + 'd ' : '') + (d || h ? h + 'h ' : '') + m + 'min';\n};\ncontext.handlebars.registerHelper('pct', v => fmtPct(num(v)));\ncontext.handlebars.registerHelper('dur', v => fmtDur(v));\ncontext.handlebars.registerHelper('durmin', v => fmtDur(Number(v || 0) * 60));\ncontext.handlebars.registerHelper('classe', v => {\n  const n = num(v);\n  return n === null ? 'sem' : n >= 100 ? 'ok' : n >= META ? 'atencao' : 'critico';\n});\ncontext.handlebars.registerHelper('mes', v => MESES[Number(v) - 1] || v);\ncontext.handlebars.registerHelper('resumo', data => {\n  const linhas = (data || []).filter(l => num(l.DISPONIBILIDADE) !== null);\n  const media = linhas.length ? linhas.reduce((a, l) => a + Number(l.DISPONIBILIDADE), 0) / linhas.length : null;\n  return {\n    media, links: (data || []).length,\n    operadoras: new Set((data || []).map(l => l.GRUPO)).size,\n    comQueda: linhas.filter(l => Number(l.SEGUNDOS_FORA) > 0).length,\n    abaixoMeta: linhas.filter(l => Number(l.DISPONIBILIDADE) < META).length,\n    fora: (data || []).reduce((a, l) => a + Number(l.SEGUNDOS_FORA || 0), 0),\n    quedas: (data || []).reduce((a, l) => a + Number(l.INCIDENTES || 0), 0),\n    chamados: (data || []).reduce((a, l) => a + Number(l.CHAMADOS || 0), 0),\n    mesNome: data && data[0] ? MESES[Number(data[0].MES) - 1] + ' ' + data[0].ANO : '',\n  };\n});\n\ncontext.handlebars.registerHelper('eq', (a, b) => a === b);\ncontext.handlebars.registerHelper('top', (data, n) => (data || []).slice(0, n));\ncontext.handlebars.registerHelper('prefixo', (data, p) => (data || []).filter(l => (l.ITEM || '').toUpperCase().startsWith(p)));\ncontext.handlebars.registerHelper('mediaDisp', rows => {\n  const v = (rows || []).map(l => num(l.DISPONIBILIDADE)).filter(x => x !== null);\n  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;\n});\ncontext.handlebars.registerHelper('soma', (rows, campo) => (rows || []).reduce((a, l) => a + Number(l[campo] || 0), 0));\n",
+                "renderMode": "allRows",
+                "styles": "\n.kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }\n@media (max-width: 1000px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }\n.kpi { border: 1px solid rgba(128,128,128,.25); border-top: 3px solid #00AAFF; border-radius: 6px; padding: 10px 12px; }\n.kpi .t { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; opacity: .7; font-weight: 600; }\n.kpi .v { font-size: 28px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }\n.kpi .s { font-size: 12px; opacity: .65; margin-top: 2px; }\n.ops { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }\n.op { border: 1px solid rgba(128,128,128,.25); border-left: 4px solid #73BF69; border-radius: 6px; padding: 8px 10px; }\n.op .n { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.op .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }\n.op .s { font-size: 11px; opacity: .65; }\n.ok .v { color: #73BF69; } .atencao .v { color: #FF9830; } .critico .v { color: #F2495C; } .sem .v { opacity: .45; }\n.op.ok { border-left-color: #73BF69; } .op.atencao { border-left-color: #FF9830; } .op.critico { border-left-color: #F2495C; }\n.op.sem { border-left-color: rgba(128,128,128,.5); }\n.disp { width: 100%; border-collapse: collapse; font-size: 13px; }\n.disp th { text-align: left; font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: .04em;\n           opacity: .75; padding: 6px 8px; border-bottom: 2px solid #00AAFF; position: sticky; top: 0;\n           background: var(--background-primary, #181b1f); }\n.disp td { padding: 5px 8px; border-bottom: 1px solid rgba(128,128,128,.18); vertical-align: top; }\n.disp tbody tr:nth-child(even) { background: rgba(128,128,128,.06); }\n.disp .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }\n.disp td.num.pct { font-weight: 700; }\n.disp .desc { opacity: .7; font-size: 12px; }\n.disp tr.ok td.pct { color: #73BF69; } .disp tr.atencao td.pct { color: #FF9830; }\n.disp tr.critico td.pct { color: #F2495C; }\n.disp tr.atencao td:first-child { box-shadow: inset 3px 0 0 #FF9830; }\n.disp tr.critico td:first-child { box-shadow: inset 3px 0 0 #F2495C; }\n.aberto { color: #F2495C; font-weight: 600; }\n.legenda { font-size: 11px; opacity: .6; margin-top: 8px; }\n.vazio { opacity: .6; padding: 8px; }\n\n.duas-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }\n.reg { font-weight: 700; font-size: 14px; margin: 6px 0 4px; }\n.reg .v { margin-left: 8px; } .reg.ok .v { color: #73BF69; } .reg.atencao .v { color: #FF9830; } .reg.critico .v { color: #F2495C; }\n.disp td.centro, .disp th.centro { text-align: center; }\n.disp tr.exp td { opacity: .55; } .selo { font-size: 10px; padding: 1px 5px; border-radius: 3px; border: 1px solid rgba(128,128,128,.5); white-space: nowrap; }\n",
+                "wrap": false
+              }
+            },
+            "version": "6.3.0"
+          }
+        }
+      },
+      "panel-7": {
+        "kind": "Panel",
+        "spec": {
+          "data": {
+            "kind": "QueryGroup",
+            "spec": {
+              "queries": [
+                {
+                  "kind": "PanelQuery",
+                  "spec": {
+                    "hidden": false,
+                    "refId": "A",
+                    "query": {
+                      "kind": "DataQuery",
+                      "group": "yesoreyeram-infinity-datasource",
+                      "version": "v0",
+                      "datasource": {
+                        "name": "dg2gfvwh9s0sgb"
+                      },
+                      "spec": {
+                        "type": "json",
+                        "source": "url",
+                        "format": "table",
+                        "parser": "backend",
+                        "url": "__API_URL__/incidentes?relatorio=tid-usinas&de=${__from:date:YYYY-MM-DD}&ate=${__to:date:YYYY-MM-DD}&ordem=desc",
+                        "url_options": {
+                          "method": "GET",
+                          "data": "",
+                          "params": [],
+                          "headers": []
+                        },
+                        "root_selector": "",
+                        "columns": [],
+                        "filters": []
+                      }
+                    }
+                  }
+                }
+              ],
+              "queryOptions": {},
+              "transformations": []
+            }
+          },
+          "description": "Mais recentes primeiro",
+          "id": 7,
+          "links": [],
+          "title": "Quedas no período — usinas",
+          "vizConfig": {
+            "group": "marcusolsson-dynamictext-panel",
+            "kind": "VizConfig",
+            "spec": {
+              "fieldConfig": {
+                "defaults": {
+                  "thresholds": {
+                    "mode": "absolute",
+                    "steps": [
+                      {
+                        "color": "green",
+                        "value": 0
+                      },
+                      {
+                        "color": "red",
+                        "value": 80
+                      }
+                    ]
+                  }
+                },
+                "overrides": []
+              },
+              "options": {
+                "afterRender": "",
+                "content": "<table class=\"disp\">\n  <thead><tr><th>Item</th><th>Grupo</th><th>Início</th><th>Fim</th><th class=\"num\">Duração</th><th>Chamado</th></tr></thead>\n  <tbody>\n  {{#each data}}\n    <tr class=\"{{#if EXPURGO}}exp{{/if}}\" title=\"{{MOTIVO_EXPURGO}}\">\n      <td>{{ITEM}}{{#if EXPURGO}} <span class=\"selo\">{{#if (eq EXPURGO \"total\")}}não contabilizado{{else}}parcialmente não contabilizado{{/if}}</span>{{/if}}</td><td>{{GRUPO}}</td><td class=\"num\">{{INICIO}}</td>\n      <td class=\"num\">{{#if FIM}}{{FIM}}{{else}}<span class=\"aberto\">em aberto</span>{{/if}}</td>\n      <td class=\"num\">{{durmin MINUTOS}}</td><td>{{CHAMADO}}</td>\n    </tr>\n  {{/each}}\n  </tbody>\n</table>",
+                "contentPartials": [],
+                "defaultContent": "<div class=\"vazio\">Sem dados para o período selecionado.</div>",
+                "editor": {
+                  "format": "auto",
+                  "language": "html"
+                },
+                "editors": [
+                  "helpers",
+                  "styles"
+                ],
+                "externalStyles": [],
+                "helpers": "const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho',\n               'Agosto','Setembro','Outubro','Novembro','Dezembro'];\nconst META = 99.9;\nconst num = v => (v === null || v === undefined || v === '' || isNaN(Number(v))) ? null : Number(v);\nconst fmtPct = n => n === null ? '—' : (n >= 100 ? '100%' :\n  (Math.floor(n * 100) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%');\nconst fmtDur = s => {\n  s = Math.round(Number(s) || 0);\n  if (!s) return '—';\n  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60);\n  return (d ? d + 'd ' : '') + (d || h ? h + 'h ' : '') + m + 'min';\n};\ncontext.handlebars.registerHelper('pct', v => fmtPct(num(v)));\ncontext.handlebars.registerHelper('dur', v => fmtDur(v));\ncontext.handlebars.registerHelper('durmin', v => fmtDur(Number(v || 0) * 60));\ncontext.handlebars.registerHelper('classe', v => {\n  const n = num(v);\n  return n === null ? 'sem' : n >= 100 ? 'ok' : n >= META ? 'atencao' : 'critico';\n});\ncontext.handlebars.registerHelper('mes', v => MESES[Number(v) - 1] || v);\ncontext.handlebars.registerHelper('resumo', data => {\n  const linhas = (data || []).filter(l => num(l.DISPONIBILIDADE) !== null);\n  const media = linhas.length ? linhas.reduce((a, l) => a + Number(l.DISPONIBILIDADE), 0) / linhas.length : null;\n  return {\n    media, links: (data || []).length,\n    operadoras: new Set((data || []).map(l => l.GRUPO)).size,\n    comQueda: linhas.filter(l => Number(l.SEGUNDOS_FORA) > 0).length,\n    abaixoMeta: linhas.filter(l => Number(l.DISPONIBILIDADE) < META).length,\n    fora: (data || []).reduce((a, l) => a + Number(l.SEGUNDOS_FORA || 0), 0),\n    quedas: (data || []).reduce((a, l) => a + Number(l.INCIDENTES || 0), 0),\n    chamados: (data || []).reduce((a, l) => a + Number(l.CHAMADOS || 0), 0),\n    mesNome: data && data[0] ? MESES[Number(data[0].MES) - 1] + ' ' + data[0].ANO : '',\n  };\n});\n\ncontext.handlebars.registerHelper('eq', (a, b) => a === b);\ncontext.handlebars.registerHelper('top', (data, n) => (data || []).slice(0, n));\ncontext.handlebars.registerHelper('prefixo', (data, p) => (data || []).filter(l => (l.ITEM || '').toUpperCase().startsWith(p)));\ncontext.handlebars.registerHelper('mediaDisp', rows => {\n  const v = (rows || []).map(l => num(l.DISPONIBILIDADE)).filter(x => x !== null);\n  return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;\n});\ncontext.handlebars.registerHelper('soma', (rows, campo) => (rows || []).reduce((a, l) => a + Number(l[campo] || 0), 0));\n",
+                "renderMode": "allRows",
+                "styles": "\n.kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }\n@media (max-width: 1000px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }\n.kpi { border: 1px solid rgba(128,128,128,.25); border-top: 3px solid #00AAFF; border-radius: 6px; padding: 10px 12px; }\n.kpi .t { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; opacity: .7; font-weight: 600; }\n.kpi .v { font-size: 28px; font-weight: 700; margin-top: 4px; font-variant-numeric: tabular-nums; }\n.kpi .s { font-size: 12px; opacity: .65; margin-top: 2px; }\n.ops { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }\n.op { border: 1px solid rgba(128,128,128,.25); border-left: 4px solid #73BF69; border-radius: 6px; padding: 8px 10px; }\n.op .n { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }\n.op .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }\n.op .s { font-size: 11px; opacity: .65; }\n.ok .v { color: #73BF69; } .atencao .v { color: #FF9830; } .critico .v { color: #F2495C; } .sem .v { opacity: .45; }\n.op.ok { border-left-color: #73BF69; } .op.atencao { border-left-color: #FF9830; } .op.critico { border-left-color: #F2495C; }\n.op.sem { border-left-color: rgba(128,128,128,.5); }\n.disp { width: 100%; border-collapse: collapse; font-size: 13px; }\n.disp th { text-align: left; font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: .04em;\n           opacity: .75; padding: 6px 8px; border-bottom: 2px solid #00AAFF; position: sticky; top: 0;\n           background: var(--background-primary, #181b1f); }\n.disp td { padding: 5px 8px; border-bottom: 1px solid rgba(128,128,128,.18); vertical-align: top; }\n.disp tbody tr:nth-child(even) { background: rgba(128,128,128,.06); }\n.disp .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }\n.disp td.num.pct { font-weight: 700; }\n.disp .desc { opacity: .7; font-size: 12px; }\n.disp tr.ok td.pct { color: #73BF69; } .disp tr.atencao td.pct { color: #FF9830; }\n.disp tr.critico td.pct { color: #F2495C; }\n.disp tr.atencao td:first-child { box-shadow: inset 3px 0 0 #FF9830; }\n.disp tr.critico td:first-child { box-shadow: inset 3px 0 0 #F2495C; }\n.aberto { color: #F2495C; font-weight: 600; }\n.legenda { font-size: 11px; opacity: .6; margin-top: 8px; }\n.vazio { opacity: .6; padding: 8px; }\n\n.duas-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }\n.reg { font-weight: 700; font-size: 14px; margin: 6px 0 4px; }\n.reg .v { margin-left: 8px; } .reg.ok .v { color: #73BF69; } .reg.atencao .v { color: #FF9830; } .reg.critico .v { color: #F2495C; }\n.disp td.centro, .disp th.centro { text-align: center; }\n.disp tr.exp td { opacity: .55; } .selo { font-size: 10px; padding: 1px 5px; border-radius: 3px; border: 1px solid rgba(128,128,128,.5); white-space: nowrap; }\n",
+                "wrap": false
+              }
+            },
+            "version": "6.3.0"
+          }
+        }
+      }
+    },
+    "layout": {
+      "kind": "GridLayout",
+      "spec": {
+        "items": [
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-2"
+              },
+              "x": 0,
+              "y": 0,
+              "width": 24,
+              "height": 5
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-3"
+              },
+              "x": 0,
+              "y": 5,
+              "width": 12,
+              "height": 30
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-4"
+              },
+              "x": 12,
+              "y": 5,
+              "width": 12,
+              "height": 20
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-5"
+              },
+              "x": 12,
+              "y": 25,
+              "width": 12,
+              "height": 10
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-6"
+              },
+              "x": 0,
+              "y": 35,
+              "width": 24,
+              "height": 12
+            }
+          },
+          {
+            "kind": "GridLayoutItem",
+            "spec": {
+              "element": {
+                "kind": "ElementReference",
+                "name": "panel-7"
+              },
+              "x": 0,
+              "y": 47,
+              "width": 24,
+              "height": 12
+            }
+          }
+        ]
+      }
+    },
+    "links": [],
+    "liveNow": false,
+    "preload": false,
+    "tags": [
+      "ENGIE",
+      "disponibilidade",
+      "sqlite"
+    ],
+    "timeSettings": {
+      "autoRefresh": "",
+      "autoRefreshIntervals": [],
+      "fiscalYearStartMonth": 0,
+      "from": "now/M",
+      "hideTimepicker": false,
+      "timezone": "America/Sao_Paulo",
+      "to": "now/M"
+    },
+    "title": "ENGIE - Disponibilidade Geral - TID",
+    "variables": [
+      {
+        "kind": "TextVariable",
+        "spec": {
+          "current": {
+            "text": "ENGIE",
+            "value": "ENGIE"
+          },
+          "hide": "dontHide",
+          "label": "Cliente",
+          "name": "cliente",
+          "query": "ENGIE",
+          "skipUrlSync": false
+        }
+      }
+    ]
+  }
+}

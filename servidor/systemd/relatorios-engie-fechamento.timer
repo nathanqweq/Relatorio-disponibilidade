@@ -1,0 +1,9 @@
+[Unit]
+Description=Relatórios ENGIE - fechamento no dia 1º às 06:00
+
+[Timer]
+OnCalendar=*-*-01 06:00 America/Sao_Paulo
+Persistent=true
+
+[Install]
+WantedBy=timers.target

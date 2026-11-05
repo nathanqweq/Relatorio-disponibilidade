@@ -1,0 +1,23 @@
+# Pacote gerado pelo empacotar.ps1
+dist/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+
+# Dados e credenciais: só existem no servidor e nunca entram no repositório
+env
+env.anterior
+*.db
+*.db-wal
+*.db-shm
+admin_usuarios.json
+admin_auditoria.log
+relatorios.json.pacote
+backups/
+pdf/
+*.crt
+*.key
+*.pem

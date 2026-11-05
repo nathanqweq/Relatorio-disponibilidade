@@ -1,0 +1,9 @@
+[Unit]
+Description=Relatórios ENGIE - fechamento mensal
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/relatorios-engie/env
+WorkingDirectory=/etc/relatorios-engie
+ExecStartPre=/etc/relatorios-engie/atualizar.sh
+ExecStart=/usr/bin/python3 /etc/relatorios-engie/relatorio.py fechar-mes-anterior
