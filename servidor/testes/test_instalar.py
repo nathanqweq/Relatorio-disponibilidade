@@ -232,8 +232,37 @@ def test_servicos_atendem_no_ip_do_env(tmp_path, bin_falso, programa, args):
 def test_sem_enderecos_do_ambiente_no_repositorio():
     proibidos = re.compile(r"172\.19\.|teltecsolutions")
     for p in PACOTE.rglob("*"):
-        if p.is_file() and not {".git", "dist", "__pycache__"} & set(p.parts) and p.suffix not in (".xlsx", ".pyc") and p.name != "test_instalar.py":
+        if (p.is_file() and not {".git", "dist", "__pycache__"} & set(p.parts) and p.suffix not in (".xlsx", ".pyc")
+                and p.name not in ("test_instalar.py", "env.engie")):       # env.engie está no .gitignore
             assert not proibidos.search(p.read_text(encoding="utf-8", errors="ignore")), p
+
+
+def test_env_exemplo_cobre_todas_as_variaveis():
+    texto = (PACOTE / "servidor/env.exemplo").read_text(encoding="utf-8")
+    documentadas = set(re.findall(r"^#?([A-Z][A-Z0-9_]+)=", texto, re.M))
+    usadas = set()
+    for arq in ("servidor/disp.py", "servidor/api.py", "servidor/relatorio.py", "servidor/admin.py", "instalar.py"):
+        fonte = (PACOTE / arq).read_text(encoding="utf-8")
+        usadas |= set(re.findall(r"""getenv\(["']([A-Z0-9_]+)""", fonte)) | set(re.findall(r"""v\[["']([A-Z0-9_]+)["']\]""", fonte))
+    campos = re.search(r"ENV_CAMPOS = \{(.*?)\n\}", (PACOTE / "servidor/admin.py").read_text(encoding="utf-8"), re.S).group(1)
+    usadas |= set(re.findall(r'^\s+"([A-Z0-9_]+)":', campos, re.M))
+    # definidas nas unidades systemd ou só para sobrepor SERVIDOR_IP, de propósito fora do exemplo
+    assert usadas - {"API_HOST", "API_PORT", "ADMIN_HOST", "ADMIN_PORT"} <= documentadas, usadas - documentadas
+
+
+def test_instalar_aproveita_env_copiado_antes(tmp_path, bin_falso):
+    """Env preenchido à mão antes da instalação: nada de perguntas sobre ele, e o IP vem de lá."""
+    raiz = tmp_path / "raiz"
+    dest = raiz / "etc/relatorios-engie"
+    dest.mkdir(parents=True)
+    texto = (PACOTE / "servidor/env.exemplo").read_text(encoding="utf-8")
+    (dest / "env").write_text(texto.replace("DISP_DB=/etc/relatorios-engie/disponibilidade.db", f"DISP_DB={dest / 'disponibilidade.db'}")
+                              .replace("#ZABBIX_FRONTEND_IP", "ZABBIX_FRONTEND_IP"), encoding="utf-8")
+    r = instalar(raiz, bin_falso, ["ana", SENHA])
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "http://192.0.2.10:8098" in r.stdout
+    assert "192.0.2.20 zabbix.exemplo.com.br" in (raiz / "etc/hosts").read_text()
+    assert "http://192.0.2.10:8099/" in (dest / "grafana/ENGIE_Disponibilidade_TID_sqlite.json").read_text(encoding="utf-8")
 
 
 def test_sem_token_instala_e_avisa(tmp_path, bin_falso, zabbix):

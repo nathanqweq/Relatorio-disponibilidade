@@ -55,7 +55,7 @@ disponibilidade = 1 − (tempo fora − tempo expurgado) / (tempo do mês − la
 
 ## Trocar um IP
 
-Os endereços ficam em `/etc/relatorios-engie/env`:
+Os endereços ficam em `/etc/relatorios-engie/env`. Todas as variáveis estão explicadas em `env.exemplo`, na mesma pasta.
 
 | Variável | Para quê |
 | --- | --- |
