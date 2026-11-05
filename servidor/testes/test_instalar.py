@@ -1,5 +1,6 @@
 """Testes do instalador: roda o instalar.py de verdade numa pasta temporária, com apt-get e systemctl
 falsos e um Zabbix falso respondendo por HTTP.  Rodar: python3 -m pytest -q testes/test_instalar.py"""
+import hashlib
 import json
 import os
 import re
@@ -63,22 +64,50 @@ def bin_falso(tmp_path):
     pasta.mkdir()
     log = pasta / "chamadas.txt"
     log.write_text("")
-    for nome in ("apt-get", "systemctl", "hostname"):
+    apt, parado = pasta / "apt_rodou", pasta / "parado"     # dpkg-query só acha os pacotes depois do apt-get install
+    for nome in ("apt-get", "systemctl", "hostname", "dpkg-query"):
         if os.name == "nt":
-            (pasta / f"{nome}.cmd").write_text(f'@echo off\r\necho {nome} %*>> "{log}"\r\nexit /b 0\r\n')
+            corpo = f'@echo off\r\necho {nome} %*>> "{log}"\r\n'
+            if nome == "apt-get":
+                corpo += f'if "%1"=="install" type nul > "{apt}"\r\n'
+            if nome == "dpkg-query":
+                corpo += f'if not exist "{apt}" exit /b 1\r\necho install ok installed\r\n'
+            if nome == "systemctl":
+                corpo += f'if "%1"=="is-active" if exist "{parado}" exit /b 3\r\n'
+            (pasta / f"{nome}.cmd").write_text(corpo + "exit /b 0\r\n")
         else:
+            corpo = f'#!/bin/sh\necho "{nome} $*" >> "{log}"\n'
+            if nome == "apt-get":
+                corpo += f'[ "$1" = install ] && : > "{apt}"\n'
+            if nome == "dpkg-query":
+                corpo += f'[ -e "{apt}" ] || exit 1\necho install ok installed\n'
+            if nome == "systemctl":
+                corpo += f'[ "$1" = is-active ] && [ -e "{parado}" ] && exit 3\n'
             f = pasta / nome
-            f.write_text(f'#!/bin/sh\necho "{nome} $*" >> "{log}"\n')
+            f.write_text(corpo + "exit 0\n")
             f.chmod(0o755)
     return pasta
 
 
-def instalar(raiz, bin_falso, respostas=()):
+def instalar(raiz, bin_falso, respostas=(), *extras):
     env = dict(os.environ, PATH=str(bin_falso) + os.pathsep + os.environ["PATH"], PYTHONIOENCODING="utf-8",
                PYTHONDONTWRITEBYTECODE="1")
     env.pop("DISP_DB", None)
-    return subprocess.run([sys.executable, str(PACOTE / "instalar.py"), "--raiz", str(raiz)], env=env, text=True, encoding="utf-8",
+    return subprocess.run([sys.executable, str(PACOTE / "instalar.py"), "--raiz", str(raiz), *extras], env=env, text=True, encoding="utf-8",
                           input="".join(f"{r}\n" for r in respostas), capture_output=True, timeout=120)
+
+
+def chamadas(bin_falso):
+    """Lê e zera o registro: cada teste olha só o que a última execução chamou."""
+    log = bin_falso / "chamadas.txt"
+    texto = log.read_text()
+    log.write_text("")
+    return texto
+
+
+def alteradoras(texto):
+    """Chamadas que mudam algo no sistema (consultas como dpkg-query e is-active não contam)."""
+    return [l.strip() for l in texto.splitlines() if l.strip() and "dpkg-query" not in l and "is-active" not in l and "hostname" not in l]
 
 
 def primeira(url, token=TOKEN, usuario="ana", senha=SENHA):
@@ -131,10 +160,10 @@ def test_primeira_instalacao_completa(tmp_path, bin_falso, zabbix):
     assert itens(raiz) == (["GA_UHSA"], 1)                    # a carga inicial rodou de verdade contra o Zabbix falso
     assert "ana" in json.loads((dest / "admin_usuarios.json").read_text(encoding="utf-8"))
 
-    chamadas = (bin_falso / "chamadas.txt").read_text()
+    chamadas = (bin_falso / "chamadas.txt").read_text()   # nome local: só aqui a lista inteira importa
     assert "apt-get install" in chamadas and "weasyprint" in chamadas and "n8n" not in chamadas and "docker" not in chamadas
-    assert "systemctl daemon-reload" in chamadas and "systemctl enable relatorios-engie-atualizar.timer" in chamadas
-    assert "systemctl restart relatorios-engie-admin.service" in chamadas
+    assert "systemctl daemon-reload" in chamadas and "systemctl enable --now relatorios-engie-atualizar.timer" in chamadas
+    assert "systemctl enable --now relatorios-engie-admin.service" in chamadas and "restart" not in chamadas
     assert "Pendente: Corrija" not in r.stdout and "Pendente: Preencha o TOPdesk" in r.stdout
     assert "http://10.1.2.3:8098" in r.stdout
 
@@ -166,6 +195,158 @@ def test_atualizacao_nao_mexe_nos_dados(tmp_path, bin_falso, zabbix):
     assert not (dest / "test_disp.py").exists()
     assert "def calcular" in (dest / "disp.py").read_text(encoding="utf-8")   # programa foi trocado
     assert (raiz / "etc/hosts").read_text() == hosts_antes
+
+
+@pytest.fixture
+def instalado(tmp_path, bin_falso, zabbix):
+    raiz = tmp_path / "raiz"
+    r = instalar(raiz, bin_falso, primeira(zabbix))
+    assert r.returncode == 0, r.stdout + r.stderr
+    chamadas(bin_falso)
+    return raiz, raiz / "etc/relatorios-engie"
+
+
+def test_sem_mudanca_nao_mexe_em_nada(instalado, bin_falso):
+    raiz, dest = instalado
+    datas = {p: p.stat().st_mtime_ns for p in dest.rglob("*") if p.is_file() and "__pycache__" not in p.parts
+             and not p.name.startswith(("disponibilidade.db", "admin_auditoria", "instalacao.json"))}
+    r = instalar(raiz, bin_falso)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "Já estava atualizado" in r.stdout and "Já instaladas" in r.stdout
+    assert alteradoras(chamadas(bin_falso)) == []          # nem apt, nem daemon-reload, nem reinício
+    assert {p: p.stat().st_mtime_ns for p in datas} == datas
+
+
+def test_arquivo_do_painel_reinicia_so_o_painel(instalado, bin_falso):
+    raiz, dest = instalado
+    (dest / "admin.py").write_text("# velho", encoding="utf-8")
+    r = instalar(raiz, bin_falso)
+    assert "Atualizado: admin.py" in r.stdout and "Atualizado: disp.py" not in r.stdout
+    assert alteradoras(chamadas(bin_falso)) == ["systemctl try-restart relatorios-engie-admin.service"]
+    assert "def servidor" in (dest / "admin.py").read_text(encoding="utf-8")
+
+
+def test_arquivo_comum_reinicia_os_dois(instalado, bin_falso):
+    raiz, dest = instalado
+    (dest / "disp.py").write_text("# velho", encoding="utf-8")
+    instalar(raiz, bin_falso)
+    assert sorted(alteradoras(chamadas(bin_falso))) == ["systemctl try-restart relatorios-engie-admin.service",
+                                                       "systemctl try-restart relatorios-engie-api.service"]
+
+
+def test_arquivo_da_tela_nao_reinicia_nada(instalado, bin_falso):
+    raiz, dest = instalado
+    (dest / "admin_web/app.js").write_text("// velho", encoding="utf-8")
+    r = instalar(raiz, bin_falso)
+    assert "Atualizado: admin_web/app.js" in r.stdout
+    assert alteradoras(chamadas(bin_falso)) == []
+
+
+def test_env_alterado_reinicia_api_e_painel(instalado, bin_falso):
+    raiz, dest = instalado
+    with (dest / "env").open("a", encoding="utf-8") as f:
+        f.write("API_TOKEN=novo\n")
+    instalar(raiz, bin_falso)
+    assert len(alteradoras(chamadas(bin_falso))) == 2
+    instalar(raiz, bin_falso)                               # na segunda vez já não há o que fazer
+    assert alteradoras(chamadas(bin_falso)) == []
+
+
+def test_unidade_alterada_recarrega_e_timer_desligado_nao_religa(instalado, bin_falso):
+    raiz, _ = instalado
+    (raiz / "etc/systemd/system/relatorios-engie-fechamento.timer").write_text("[Timer]\n", encoding="utf-8")
+    (raiz / "etc/systemd/system/relatorios-engie-parciais.service").write_text("[Service]\n", encoding="utf-8")
+    instalar(raiz, bin_falso)
+    assert alteradoras(chamadas(bin_falso)) == ["systemctl daemon-reload", "systemctl try-restart relatorios-engie-fechamento.timer"]
+
+
+def test_unidade_nova_e_ligada(instalado, bin_falso):
+    raiz, _ = instalado
+    (raiz / "etc/systemd/system/relatorios-engie-admin.service").unlink()
+    instalar(raiz, bin_falso)
+    assert alteradoras(chamadas(bin_falso)) == ["systemctl daemon-reload", "systemctl enable --now relatorios-engie-admin.service"]
+
+
+def test_servico_parado_nao_e_religado_mas_avisa(instalado, bin_falso):
+    raiz, dest = instalado
+    (bin_falso / "parado").write_text("")
+    r = instalar(raiz, bin_falso)
+    assert "relatorios-engie-api.service não está no ar" in r.stdout
+    assert alteradoras(chamadas(bin_falso)) == []
+
+
+def test_dependencia_faltando_instala_so_ela(instalado, bin_falso):
+    raiz, _ = instalado
+    (bin_falso / "apt_rodou").unlink()
+    r = instalar(raiz, bin_falso)
+    assert "Instalando:" in r.stdout
+    assert any(c.startswith("apt-get install") for c in alteradoras(chamadas(bin_falso)))
+
+
+def test_arquivo_que_saiu_do_pacote_e_removido_e_dados_ficam(instalado, bin_falso):
+    raiz, dest = instalado
+    estado = json.loads((dest / "instalacao.json").read_text(encoding="utf-8"))
+    (dest / "programa_velho.py").write_text("x")
+    (dest / "meu_arquivo.txt").write_text("x")
+    estado["arquivos"] += ["programa_velho.py", "../fora_da_pasta.txt"]
+    (dest / "instalacao.json").write_text(json.dumps(estado), encoding="utf-8")
+    fora = dest.parent / "fora_da_pasta.txt"
+    fora.write_text("x")
+    r = instalar(raiz, bin_falso)
+    assert "Removido: programa_velho.py" in r.stdout and not (dest / "programa_velho.py").exists()
+    assert (dest / "meu_arquivo.txt").exists() and fora.exists() and (dest / "env").exists()
+    assert (dest / "disponibilidade.db").exists() and (dest / "admin_usuarios.json").exists()
+
+
+def test_definicoes_sem_edicao_atualizam_e_com_edicao_ficam(instalado, bin_falso):
+    raiz, dest = instalado
+    defs, copia = dest / "relatorios.json", dest / "relatorios.json.pacote"
+    original = defs.read_bytes()
+    # Instalado de uma versão antiga e nunca editado: o estado guarda o hash exatamente desse conteúdo
+    defs.write_text('{"antigo": {}}', encoding="utf-8")
+    estado = json.loads((dest / "instalacao.json").read_text(encoding="utf-8"))
+    estado["relatorios_sha"] = hashlib.sha256(defs.read_bytes()).hexdigest()
+    (dest / "instalacao.json").write_text(json.dumps(estado), encoding="utf-8")
+    r = instalar(raiz, bin_falso)
+    assert "Atualizado: relatorios.json" in r.stdout and defs.read_bytes() == original and not copia.exists()
+    # Editado pelo painel: fica, e a versão do pacote vai ao lado, avisando uma vez só
+    defs.write_text('{"editado": {}}', encoding="utf-8")
+    assert "foi mantido" in instalar(raiz, bin_falso).stdout
+    assert defs.read_text(encoding="utf-8") == '{"editado": {}}' and copia.read_bytes() == original
+    assert "foi mantido" not in instalar(raiz, bin_falso).stdout
+    # Voltou a ser igual ao pacote: a cópia ao lado perde o sentido
+    defs.write_bytes(original)
+    instalar(raiz, bin_falso)
+    assert not copia.exists()
+
+
+def test_erro_no_meio_nao_esquece_o_reinicio(instalado, bin_falso):
+    raiz, dest = instalado
+    (dest / "admin.py").write_text("# velho", encoding="utf-8")
+    (dest / "admin_usuarios.json").unlink()                 # sem usuário e sem resposta: para no meio
+    assert instalar(raiz, bin_falso, ["ana", "curta"]).returncode != 0
+    assert "try-restart" not in chamadas(bin_falso)
+    assert "def servidor" in (dest / "admin.py").read_text(encoding="utf-8")     # o arquivo já foi trocado...
+    r = instalar(raiz, bin_falso, ["ana", SENHA])
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "systemctl try-restart relatorios-engie-admin.service" in chamadas(bin_falso)   # ...e o reinício não se perde
+
+
+def test_forcar_copia_tudo_e_reinicia(instalado, bin_falso):
+    raiz, _ = instalado
+    r = instalar(raiz, bin_falso, (), "--forcar")
+    assert r.returncode == 0 and "Atualizado: disp.py" in r.stdout
+    feito = chamadas(bin_falso)
+    assert "systemctl try-restart relatorios-engie-api.service" in feito and "systemctl try-restart relatorios-engie-admin.service" in feito
+    assert "apt-get" not in feito
+
+
+def test_dashboard_mudou_avisa_para_importar(instalado, bin_falso):
+    raiz, dest = instalado
+    (dest / "grafana/ENGIE_Disponibilidade_TID_sqlite.json").write_text("{}", encoding="utf-8")
+    r = instalar(raiz, bin_falso)
+    assert "Dashboard: ENGIE_Disponibilidade_TID_sqlite.json" in r.stdout and "importe de novo" in r.stdout
+    assert "importe de novo" not in instalar(raiz, bin_falso).stdout
 
 
 def test_mudar_ip_no_env_e_reinstalar(tmp_path, bin_falso, zabbix):

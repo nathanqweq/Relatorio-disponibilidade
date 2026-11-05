@@ -122,8 +122,19 @@ Depois, `systemctl restart relatorios-engie-admin.service` e acesse por `https:/
 
 ## Atualizar uma instalação existente
 
-Repita o passo 3. Sem nenhuma pergunta, o instalador troca os programas e as unidades e reinicia os serviços. Não são alterados: `env`, banco, PDFs, usuários, backups e auditoria.
+Repita o passo 3. Sem nenhuma pergunta, o instalador compara o pacote com o que está instalado e mexe só no que mudou, listando cada alteração. Se nada mudou, ele avisa e não reinicia nada.
 
-As definições editadas no painel também ficam como estão. Se o pacote trouxer uma versão diferente de `relatorios.json`, ela é guardada ao lado, como `relatorios.json.pacote`, para você comparar.
+| O quê | O que acontece |
+| --- | --- |
+| Programas | Só os arquivos diferentes são copiados. Os que saíram do pacote são removidos |
+| Dependências | Só instala o que falta; sem nada faltando, não usa o apt |
+| API e painel | Só reinicia o serviço afetado pela mudança. Mudança só em `admin_web/` não reinicia nada |
+| Serviço ou timer desligado | Continua desligado |
+| Dashboards | Refeitos se mudaram, com aviso para importar de novo no Grafana |
+| `env`, banco, PDFs, usuários, backups, auditoria | Nunca são alterados (exceto acrescentar uma variável nova ao `env`, se faltar) |
+
+As definições (`relatorios.json`) são atualizadas se ninguém as editou. Se você editou pelo painel, elas ficam como estão, e a versão do pacote é guardada ao lado, como `relatorios.json.pacote`, para você comparar.
+
+O que foi instalado fica registrado em `instalacao.json`, na pasta de instalação. Para copiar tudo de novo e reiniciar os serviços mesmo sem diferença: `sh ENGIE_Relatorios_Disponibilidade/instalar.sh --forcar`.
 
 Vindo de uma instalação feita pelo tutorial antigo, o instalador só pergunta o usuário do painel.

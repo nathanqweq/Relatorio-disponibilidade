@@ -11,6 +11,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -82,7 +83,11 @@ def srv(tmp_path_factory):
               "(1,'tid-usinas','GA_A','GERACAO','GA_A',0),(2,'tid-usinas','NE_B','{$LINK.OPERADORA}','NE_B',0)")
     c.execute("INSERT INTO incidentes (id, objeto_id, zabbix_eventid, inicio, fim, problema, chamado) VALUES "
               "(10,1,'e1',1784000000,1784003600,'<img src=x onerror=alert(1)>','I2607-1'),"
-              "(11,2,'e2',1784100000,1784103600,'queda 2',NULL)")
+              "(11,2,'e2',1784100000,1784103600,'queda 2',NULL),"
+              "(12,2,'e3',1784200000,1784203600,'queda 3','I2607-2'),"
+              "(13,1,'e4',1784300000,1784303600,'queda 4','I 2607 3'),"
+              "(14,2,'e5',1784400000,1784403600,'queda 5','I2607-2')")
+    c.execute("INSERT INTO chamados (numero, titulo, status) VALUES ('I2607-1','Usina sem comunicação','Encerrado')")
     c.commit()
     c.close()
     sem = subprocess.run([sys.executable, "admin.py", "servidor"], cwd=pasta, env=env, capture_output=True, text=True)
@@ -179,6 +184,79 @@ def test_desconsiderar_e_voltar_a_contar(cli):
     assert s == 200, d
     s, linhas = cli.get(f"/api/quedas?relatorio=tid-usinas&mes={MES_PASSADO}")
     assert {l["ID"]: l for l in linhas}[10]["EXPURGO"] is None
+
+
+@pytest.mark.parametrize("lista", ["I2607-1, I2607-2", "I2607-1;I2607-2", "I2607-1\nI2607-2\n", "I2607-1 I2607-2",
+                                   "  i2607-1 ,, i2607 2 ", "I2607-1,I2607-1,I2607-2"])
+def test_lista_de_chamados_em_varios_formatos(cli, lista):
+    s, r = cli.post("/api/quedas/conferir-chamados", {"texto": lista})
+    assert s == 200, r
+    assert r["nao_encontrados"] == [] and r["pedidos"] == 2
+    assert sorted(q["id"] for q in r["quedas"]) == [10, 12, 14]    # um chamado pode ter várias quedas
+
+
+def test_lista_acha_numero_gravado_com_espacos(cli):
+    for lista in ("I 2607 3", "I2607-3", "i2607 3"):
+        s, r = cli.post("/api/quedas/conferir-chamados", {"texto": lista})
+        assert [q["id"] for q in r["quedas"]] == [13], lista
+
+
+def test_lista_aponta_o_que_nao_existe(cli):
+    s, r = cli.post("/api/quedas/conferir-chamados", {"texto": "I2607-1, I9999-9, nada"})
+    assert s == 200 and r["nao_encontrados"] == ["I9999-9", "nada"]
+    assert [q["id"] for q in r["quedas"]] == [10]
+    s, r = cli.post("/api/quedas/conferir-chamados", {"texto": "I9999-9"})
+    assert s == 200 and r["quedas"] == []
+
+
+def test_lista_conferir_nao_altera_e_fluxo_completo(cli):
+    antes = len(cli.get("/api/expurgos")[1])
+    s, r = cli.post("/api/quedas/conferir-chamados", {"texto": "I2607-2"})
+    assert len(cli.get("/api/expurgos")[1]) == antes               # conferir não muda nada
+    ids = [q["id"] for q in r["quedas"]]
+    assert all(q["expurgo"] is None for q in r["quedas"])
+    s, d = cli.post("/api/quedas/desconsiderar", {"incidentes": ids, "tipo": "falso_positivo", "motivo": "lista"})
+    assert s == 200, d
+    r = cli.post("/api/quedas/conferir-chamados", {"texto": "I2607-2"})[1]
+    assert all(q["expurgo"] == "total" for q in r["quedas"])       # a tela já mostra como desconsideradas
+    assert cli.post("/api/quedas/contabilizar", {"incidentes": ids})[0] == 200
+    assert all(q["expurgo"] is None for q in cli.post("/api/quedas/conferir-chamados", {"texto": "I2607-2"})[1]["quedas"])
+
+
+def test_lista_validacoes(cli):
+    assert cli.post("/api/quedas/conferir-chamados", {"texto": "   "})[0] == 400
+    assert cli.post("/api/quedas/conferir-chamados", {"texto": 5})[0] == 400
+    assert cli.post("/api/quedas/conferir-chamados", {"texto": " ".join(f"X{i}" for i in range(201))})[0] == 400
+    assert cli.post("/api/quedas/conferir-chamados", {"texto": "x" * 20001})[0] == 400
+    # texto malicioso só aparece como não encontrado: nunca vira SQL nem comando
+    s, r = cli.post("/api/quedas/conferir-chamados", {"texto": "';DROP--TABLE,--por=x"})
+    assert s == 200 and r["quedas"] == [] and cli.get("/api/itens")[0] == 200
+
+
+def test_seletor_lista_itens_com_contagem(cli):
+    s, itens = cli.get(f"/api/quedas/itens?relatorio=tid-usinas&mes={MES_PASSADO}")
+    assert s == 200 and itens == [{"item": "GA_A", "quedas": 2}, {"item": "NE_B", "quedas": 3}]
+    assert cli.get("/api/quedas/itens?relatorio=tid-usinas&mes=2026-01")[1] == [{"item": "GA_A", "quedas": 0}, {"item": "NE_B", "quedas": 0}]
+    assert cli.get("/api/quedas/itens?relatorio=nao-existe")[1] == []
+    assert cli.get("/api/quedas/itens")[0] == 400
+    assert cli.get("/api/quedas/itens?relatorio=tid-usinas&mes=abc")[0] == 400
+
+
+def test_filtro_por_item_e_exato(cli):
+    base = f"/api/quedas?relatorio=tid-usinas&mes={MES_PASSADO}"
+    assert sorted(l["ID"] for l in cli.get(base + "&item=GA_A")[1]) == [10, 13]
+    assert sorted(l["ID"] for l in cli.get(base + "&item=NE_B")[1]) == [11, 12, 14]
+    assert cli.get(base + "&item=GA")[1] == []                # parte do nome não serve
+    assert cli.get(base + "&item=%25")[1] == []               # nem curinga
+
+
+def test_queda_traz_titulo_do_chamado(cli):
+    base = f"/api/quedas?relatorio=tid-usinas&mes={MES_PASSADO}"
+    por_id = {l["ID"]: l for l in cli.get(base)[1]}
+    assert por_id[10]["CHAMADO_TITULO"] == "Usina sem comunicação"
+    assert por_id[12]["CHAMADO_TITULO"] is None and por_id[11]["CHAMADO_TITULO"] is None
+    com = cli.get(base + "&situacao=com-chamado")[1]
+    assert sorted(l["ID"] for l in com) == [10, 12, 13, 14]
 
 
 def test_quedas_validacoes(cli):
@@ -349,12 +427,62 @@ def test_aviso_de_mes_fechado(cli):
     cli.post("/api/quedas/contabilizar", {"incidentes": [11]})
 
 
+def test_periodos_prontos_nas_datas_certas():
+    import admin
+    p = {x["id"]: x for x in admin.periodos_prontos(date(2026, 11, 5))}     # quinta-feira
+    assert (p["7d"]["de"], p["7d"]["ate"]) == ("2026-10-30", "2026-11-05")  # 7 dias, contando hoje
+    assert (p["30d"]["de"], p["30d"]["ate"]) == ("2026-10-07", "2026-11-05")
+    assert (p["semana"]["de"], p["semana"]["ate"]) == ("2026-10-26", "2026-11-01")   # segunda a domingo
+    assert p["mes"]["mes"] == "2026-11"
+    assert (p["mes-anterior"]["mes"], p["mes-anterior"]["de"], p["mes-anterior"]["ate"]) == ("2026-10", "2026-10-01", "2026-10-31")
+    assert p["3m"]["de"] == "2026-08-05"
+
+
+@pytest.mark.parametrize("hoje,esperado", [
+    (date(2026, 1, 15), {"mes-anterior": ("2025-12-01", "2025-12-31"), "3m": "2025-10-15"}),    # virada de ano
+    (date(2026, 3, 31), {"mes-anterior": ("2026-02-01", "2026-02-28"), "3m": "2025-12-31"}),    # fevereiro curto
+    (date(2026, 5, 31), {"mes-anterior": ("2026-04-01", "2026-04-30"), "3m": "2026-02-28"}),    # dia 31 sem par
+])
+def test_periodos_prontos_em_datas_dificeis(hoje, esperado):
+    import admin
+    p = {x["id"]: x for x in admin.periodos_prontos(hoje)}
+    assert (p["mes-anterior"]["de"], p["mes-anterior"]["ate"]) == esperado["mes-anterior"]
+    assert p["3m"]["de"] == esperado["3m"]
+
+
+def test_semana_passada_num_domingo_e_numa_segunda():
+    import admin
+    dom = {x["id"]: x for x in admin.periodos_prontos(date(2026, 11, 8))}["semana"]
+    seg = {x["id"]: x for x in admin.periodos_prontos(date(2026, 11, 9))}["semana"]
+    assert (dom["de"], dom["ate"]) == ("2026-10-26", "2026-11-01")      # a semana ainda não terminou
+    assert (seg["de"], seg["ate"]) == ("2026-11-02", "2026-11-08")
+
+
+def test_periodos_cabem_no_que_o_banco_guarda(cli):
+    s, d = cli.get("/api/periodos")
+    assert s == 200 and d["meses_guardados"] == 3
+    assert all(p["de"] >= d["dados_desde"] and p["ate"] <= d["hoje"] for p in d["periodos"])
+
+
+def test_retencao_igual_a_do_atualizar():
+    import admin
+    assert f"limpar --meses {admin.MESES_GUARDADOS}" in (ORIGEM / "atualizar.sh").read_text(encoding="utf-8")
+
+
+def test_gerar_com_cada_periodo_pronto(cli):
+    for p in cli.get("/api/periodos")[1]["periodos"]:
+        t = {"mes": p["mes"]} if p.get("mes") else {"de": p["de"], "ate": p["ate"]}
+        d = cli.tarefa("gerar", relatorio="firewalls-sci", **t)
+        assert d["estado"] == "concluida", (p["id"], cli.get(f"/api/tarefas/{d['id']}?desde=0")[1]["saida"])
+    assert cli.post("/api/tarefas", {"tipo": "gerar", "parametros": {"relatorio": "firewalls-sci", "de": "2026-07-01"}})[0] == 400
+
+
 def test_gerar_avulso_e_remover(cli):
     d = cli.tarefa("gerar", relatorio="firewalls-sci", de="2026-07-01", ate="2026-07-05")
     assert d["estado"] == "concluida", cli.get(f"/api/tarefas/{d['id']}?desde=0")[1]["saida"]
     assert cli.tarefa("gerar", mes=MES_PASSADO)["estado"] == "concluida"
     avulsos = [p for p in cli.get("/api/pdfs")[1] if p["tipo"] == "avulso"]
-    assert len(avulsos) == 8 + 1
+    assert len(avulsos) >= 8 + 1
     assert cli.post("/api/pdfs/remover", {"caminho": avulsos[0]["caminho"]})[0] == 200
 
 

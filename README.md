@@ -18,7 +18,7 @@ apt install -y unzip && cd /tmp && unzip -o ENGIE_Relatorios_Disponibilidade.zip
 sh ENGIE_Relatorios_Disponibilidade/instalar.sh
 ```
 
-Na primeira vez, o instalador faz as perguntas necessárias e liga tudo. Para atualizar, repita os mesmos comandos: só os programas são trocados, e credenciais, banco, PDFs e usuários ficam como estão.
+Na primeira vez, o instalador faz as perguntas necessárias e liga tudo. Para atualizar, repita os mesmos comandos: o instalador compara com o que está instalado e mexe só no que mudou. Credenciais, banco, PDFs e usuários ficam como estão.
 
 O painel fica em `http://IP_DO_SERVIDOR:8098`. Os endereços do ambiente ficam só no arquivo `env` do servidor, que não entra no repositório.
 

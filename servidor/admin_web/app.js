@@ -101,7 +101,7 @@ function campo(c) {
 function lerForm(form) {
   const d = {};
   for (const el of form.elements) {
-    if (!el.name) continue;
+    if (!el.name || (el.type === "radio" && !el.checked)) continue;
     d[el.name] = el.type === "checkbox" ? el.checked : el.value;
   }
   return d;
@@ -116,7 +116,7 @@ function dialogo(conteudo, largo) {
 }
 
 // Formulário em janela: o erro aparece na própria janela, sem perder o que foi digitado.
-function abrirForm({ titulo, nota, campos, botaoTexto, perigo, enviar, largo }) {
+function abrirForm({ titulo, nota, conteudo, campos, botaoTexto, perigo, enviar, largo, extras }) {
   const erro = h("div", { classe: "erro-form", hidden: true });
   const salvar = h("button", { type: "submit", classe: perigo ? "perigo" : "primario" }, botaoTexto || "Salvar");
   const form = h("form", {
@@ -137,9 +137,11 @@ function abrirForm({ titulo, nota, campos, botaoTexto, perigo, enviar, largo }) 
   },
   h("h2", {}, titulo),
   nota ? h("p", { classe: "nota" }, nota) : null,
+  conteudo,
   campos.map((c) => (Array.isArray(c) ? h("div", { classe: "duas" }, c.map(campo)) : campo(c))),
   erro,
-  h("div", { classe: "rodape-dialogo" }, h("button", { type: "button", onclick: () => d.close() }, "Cancelar"), salvar));
+  h("div", { classe: "rodape-dialogo" }, extras ? extras(() => d.close()) : null,
+    h("button", { type: "button", onclick: () => d.close() }, "Cancelar"), salvar));
   const d = dialogo(form, largo);
   return d;
 }
@@ -261,16 +263,22 @@ Paginas.painel = async () => {
 };
 
 Paginas.quedas = async () => {
+  const atual = (filtros.quedas = filtros.quedas || {});
+  atual.relatorio = atual.relatorio || LISTAS.medicoes[0] || "";
+  atual.mes = atual.mes || LISTAS.mes_atual;
+  const itens = atual.relatorio ? await api("/quedas/itens" + consulta({ relatorio: atual.relatorio, mes: atual.mes })) : [];
+  if (atual.item && !itens.some((i) => i.item === atual.item)) atual.item = "";   // trocou de medição ou de mês
   const f = barraFiltros("quedas", [
-    { nome: "relatorio", rotulo: "Medição", tipo: "select", opcoes: opcoesMedicao(), valor: LISTAS.medicoes[0] || "" },
-    { nome: "mes", rotulo: "Mês", tipo: "month", valor: LISTAS.mes_atual },
-    { nome: "item", rotulo: "Item contém", placeholder: "ex.: UHCC" },
+    { nome: "relatorio", rotulo: "Medição", tipo: "select", opcoes: opcoesMedicao() },
+    { nome: "mes", rotulo: "Mês", tipo: "month" },
+    { nome: "item", rotulo: "Item", tipo: "select", opcoes: [{ valor: "", rotulo: "Todos os itens" },
+      ...itens.map((i) => ({ valor: i.item, rotulo: `${i.item} (${i.quedas})` }))] },
     { nome: "situacao", rotulo: "Situação", tipo: "select", opcoes: [
-      { valor: "", rotulo: "Todas" }, { valor: "abertas", rotulo: "Em aberto" },
+      { valor: "", rotulo: "Todas" }, { valor: "com-chamado", rotulo: "Com chamado" }, { valor: "abertas", rotulo: "Em aberto" },
       { valor: "contabilizadas", rotulo: "Contando no cálculo" }, { valor: "desconsideradas", rotulo: "Desconsideradas" }] },
   ], rerender);
-  const topo = [cabecalho("Quedas"),
-    h("p", { classe: "nota" }, "Desconsiderar tira a queda do cálculo, mas ela continua no relatório, marcada com o motivo. Fica registrado em seu nome."),
+  const topo = [cabecalho("Quedas", botao("Por lista de chamados", () => dialogoListaChamados())),
+    h("p", { classe: "nota" }, "Escolha o item, marque as quedas e clique em Desconsiderar. Elas saem do cálculo, mas continuam no relatório, marcadas com o motivo e registradas em seu nome."),
     f.el];
   if (!f.estado.relatorio) return [...topo, h("div", { classe: "cartao vazio" }, "Nenhuma medição cadastrada. Rode a sincronização em Tarefas.")];
   const linhas = await api("/quedas" + consulta(f.estado));
@@ -279,27 +287,90 @@ Paginas.quedas = async () => {
   const barra = h("div", { classe: "selecao", hidden: true }, n, " selecionada(s)",
     botao("Desconsiderar", () => dialogoDesconsiderar([...marcadas]), "primario"),
     botao("Voltar a contar", () => voltarAContar([...marcadas])));
-  const atualizar = () => { n.textContent = marcadas.size; barra.hidden = marcadas.size === 0; };
+  const caixas = [];
+  const todas = h("input", {
+    type: "checkbox", "aria-label": "Marcar todas as quedas da lista",
+    onchange: (ev) => {
+      caixas.forEach(({ id, caixa }) => { caixa.checked = ev.target.checked; if (ev.target.checked) marcadas.add(id); else marcadas.delete(id); });
+      atualizar();
+    },
+  });
+  const atualizar = () => {
+    n.textContent = marcadas.size;
+    barra.hidden = marcadas.size === 0;
+    todas.checked = caixas.length > 0 && marcadas.size === caixas.length;
+    todas.indeterminate = marcadas.size > 0 && marcadas.size < caixas.length;
+  };
+  const caixaDaQueda = (q) => {
+    const caixa = h("input", {
+      type: "checkbox", "aria-label": `Marcar a queda ${q.ID}`, onclick: (ev) => ev.stopPropagation(),
+      onchange: (ev) => { if (ev.target.checked) marcadas.add(q.ID); else marcadas.delete(q.ID); atualizar(); },
+    });
+    caixas.push({ id: q.ID, caixa });
+    return caixa;
+  };
   const situacao = (q) => {
     if (q.EXPURGO === "total") return selo("não contabilizada", "aviso");
     if (q.EXPURGO === "parcial") return selo("parcial", "aviso");
     return q.FIM ? selo("contando") : selo("em aberto", "erro");
   };
   return [...topo, h("div", { classe: "cartao" }, barra, tabela([
-    { titulo: "", valor: (q) => h("input", {
-      type: "checkbox", "aria-label": `Selecionar queda ${q.ID}`, onclick: (ev) => ev.stopPropagation(),
-      onchange: (ev) => { ev.target.checked ? marcadas.add(q.ID) : marcadas.delete(q.ID); atualizar(); },
-    }) },
-    { titulo: "Id", classe: "num", valor: (q) => q.ID },
+    { titulo: todas, valor: caixaDaQueda },
+    { titulo: "Chamado", valor: (q) => [h("b", {}, q.CHAMADO || "Sem chamado"), h("br"), h("small", {}, q.CHAMADO_TITULO || q.PROBLEMA || "")] },
     { titulo: "Item", valor: (q) => q.ITEM },
-    { titulo: "Grupo", valor: (q) => q.GRUPO || "-" },
     { titulo: "Início", classe: "nw", valor: (q) => q.INICIO },
     { titulo: "Fim", classe: "nw", valor: (q) => q.FIM || "em aberto" },
     { titulo: "Min.", classe: "num", valor: (q) => q.MINUTOS },
-    { titulo: "Chamado", classe: "nw", valor: (q) => q.CHAMADO || "-" },
     { titulo: "Situação", valor: situacao },
   ], linhas, { vazio: "Nenhuma queda com estes filtros.", aoClicar: (q) => detalheQueda(q.ID) }))];
 };
+
+function dialogoListaChamados(texto) {
+  abrirForm({
+    titulo: "Quedas por lista de chamados", botaoTexto: "Conferir",
+    nota: "Cole os números separados por vírgula, espaço ou um por linha. Nada é alterado nesta etapa.",
+    campos: [{ nome: "chamados", rotulo: "Chamados", tipo: "area", linhas: 7, obrigatorio: true, valor: texto }],
+    enviar: async (v) => {
+      const r = await api("/quedas/conferir-chamados", { texto: v.chamados });
+      dialogoChamadosConferidos(r, v.chamados);
+    },
+  });
+}
+
+function dialogoChamadosConferidos(r, texto) {
+  const pendentes = r.quedas.filter((q) => q.expurgo !== "total");
+  const desfazer = r.quedas.filter((q) => q.expurgo);
+  const achados = new Set(r.quedas.map((q) => q.chamado)).size;
+  abrirForm({
+    titulo: `${r.quedas.length} queda(s) em ${achados} chamado(s)`, largo: true,
+    botaoTexto: pendentes.length ? `Desconsiderar ${pendentes.length} queda(s)` : "Fechar",
+    conteudo: [
+      r.nao_encontrados.length ? h("div", { classe: "alerta aviso" },
+        `Não encontrados, nada será feito com eles: ${r.nao_encontrados.join(", ")}`) : null,
+      tabela([
+        { titulo: "Chamado", classe: "nw", valor: (q) => q.chamado },
+        { titulo: "Medição", valor: (q) => q.relatorio },
+        { titulo: "Item", valor: (q) => q.item },
+        { titulo: "Início", classe: "nw", valor: (q) => q.inicio },
+        { titulo: "Fim", classe: "nw", valor: (q) => q.fim || "em aberto" },
+        { titulo: "Min.", classe: "num", valor: (q) => q.minutos },
+        { titulo: "Situação", valor: (q) => (q.expurgo === "total" ? selo("não contabilizada", "aviso")
+          : q.expurgo === "parcial" ? selo("parcial", "aviso") : selo("contando")) },
+      ], r.quedas, { vazio: "Nenhuma queda encontrada para estes chamados." }),
+    ],
+    campos: pendentes.length ? [
+      { nome: "tipo", rotulo: "Tipo", tipo: "select", opcoes: opcoesTipo() },
+      { nome: "motivo", rotulo: "Motivo (aparece no relatório)", tipo: "area", obrigatorio: true },
+    ] : [],
+    extras: (fechar) => [
+      botao("Alterar a lista", () => { fechar(); dialogoListaChamados(texto); }),
+      desfazer.length ? botao(`Voltar a contar ${desfazer.length} queda(s)`, () => { fechar(); voltarAContar(desfazer.map((q) => q.id)); }) : null,
+    ],
+    enviar: async (v) => (pendentes.length
+      ? api("/quedas/desconsiderar", { incidentes: pendentes.map((q) => q.id), tipo: v.tipo, motivo: v.motivo })
+      : undefined),
+  });
+}
 
 function dialogoDesconsiderar(ids) {
   const um = ids.length === 1;
@@ -509,6 +580,65 @@ Paginas.fechamento = async () => {
   ];
 };
 
+const dataBr = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
+
+Paginas.relatorios = async () => {
+  const [d, pdfs] = await Promise.all([api("/periodos"), api("/pdfs")]);
+  const estado = (filtros.relatorios = filtros.relatorios || { periodo: "30d", relatorio: "", de: "", ate: "" });
+  const de = h("input", { name: "de", type: "date", value: estado.de, max: d.hoje });
+  const ate = h("input", { name: "ate", type: "date", value: estado.ate, max: d.hoje });
+  const aviso = h("div", { classe: "alerta aviso", hidden: true });
+  const livres = h("div", { classe: "filtros", hidden: estado.periodo !== "outro" },
+    h("label", { classe: "campo" }, "De", de), h("label", { classe: "campo" }, "Até", ate));
+  const antigo = () => estado.periodo === "outro" && de.value && de.value < d.dados_desde;
+  const atualizar = () => {
+    livres.hidden = estado.periodo !== "outro";
+    de.required = ate.required = estado.periodo === "outro";
+    aviso.hidden = !antigo();
+    aviso.textContent = `As quedas anteriores a ${dataBr(d.dados_desde)} já foram apagadas pela limpeza automática. Nesse trecho, a disponibilidade sairia maior do que foi de verdade.`;
+  };
+  de.addEventListener("input", atualizar);
+  const opcao = (id, rotulo, datas) => h("label", { classe: "chip" },
+    h("input", { type: "radio", name: "periodo", value: id, checked: estado.periodo === id,
+      onchange: () => { estado.periodo = id; atualizar(); } }),
+    h("span", {}, h("b", {}, rotulo), datas ? h("small", {}, datas) : null));
+  const gerar = (parametros) => iniciarTarefa("gerar", parametros);
+  const form = h("form", {
+    classe: "cartao formulario", onsubmit: (ev) => {
+      ev.preventDefault();
+      estado.relatorio = form.elements.relatorio.value;
+      estado.de = de.value;
+      estado.ate = ate.value;
+      const p = d.periodos.find((x) => x.id === estado.periodo);
+      const tempo = p ? (p.mes ? { mes: p.mes } : { de: p.de, ate: p.ate }) : { de: de.value, ate: ate.value };
+      const parametros = { relatorio: estado.relatorio, ...tempo };
+      if (!antigo()) return gerar(parametros);
+      confirmar({
+        titulo: "Período com dados apagados", texto: aviso.textContent, botaoTexto: "Gerar mesmo assim",
+        enviar: () => { gerar(parametros); return Promise.resolve(); },
+      });
+    },
+  },
+  h("label", { classe: "campo" }, "Relatório", campoEntrada({ nome: "relatorio", tipo: "select", opcoes: opcoesPdf(true), valor: estado.relatorio })),
+  h("fieldset", { classe: "chips" }, h("legend", {}, "Período"),
+    d.periodos.map((p) => opcao(p.id, p.rotulo, `${dataBr(p.de)} a ${dataBr(p.ate)}`)),
+    opcao("outro", "Outro período", "Escolha as datas")),
+  livres, aviso,
+  h("div", {}, h("button", { type: "submit", classe: "primario" }, "Gerar relatório")));
+  atualizar();
+  const avulsos = pdfs.filter((p) => p.tipo === "avulso").slice(0, 10);
+  return [
+    cabecalho("Gerar relatório"),
+    h("p", { classe: "nota" }, "Gera o PDF na hora, com os dados de agora. Não muda o fechamento: o PDF oficial do mês continua em Fechamento."),
+    form,
+    h("div", { classe: "cartao" }, h("h2", {}, "Gerados recentemente"), tabela([
+      { titulo: "Arquivo", valor: (p) => h("a", { href: "/api/pdf" + consulta({ caminho: p.caminho }) }, p.nome) },
+      { titulo: "Gerado em", classe: "nw", valor: (p) => p.gerado_em },
+      { titulo: "Tamanho", classe: "num", valor: (p) => tamanho(p.tamanho) },
+    ], avulsos, { vazio: "Nenhum relatório gerado ainda." })),
+  ];
+};
+
 Paginas.pdfs = async () => {
   const f = barraFiltros("pdfs", [
     { nome: "tipo", rotulo: "Tipo", tipo: "select", opcoes: [
@@ -516,18 +646,8 @@ Paginas.pdfs = async () => {
   ], rerender);
   const todos = await api("/pdfs");
   const linhas = f.estado.tipo ? todos.filter((p) => p.tipo === f.estado.tipo) : todos;
-  const gerar = () => abrirForm({
-    titulo: "Gerar PDF avulso", botaoTexto: "Gerar",
-    nota: "Não muda o fechamento. Informe o mês, ou um período livre com data inicial e final.",
-    campos: [
-      { nome: "relatorio", rotulo: "Relatório", tipo: "select", opcoes: opcoesPdf(true) },
-      { nome: "mes", rotulo: "Mês", tipo: "month", valor: LISTAS.mes_atual },
-      [{ nome: "de", rotulo: "Período livre: de", tipo: "date" }, { nome: "ate", rotulo: "até", tipo: "date" }],
-    ],
-    enviar: (v) => { iniciarTarefa("gerar", v); return Promise.resolve(); },
-  });
   return [
-    cabecalho("Arquivos PDF", botao("Gerar PDF avulso", gerar, "primario")),
+    cabecalho("Arquivos PDF", botao("Gerar relatório", () => { location.hash = "relatorios"; }, "primario")),
     f.el,
     h("div", { classe: "cartao" }, tabela([
       { titulo: "Arquivo", valor: (p) => [h("a", { href: "/api/pdf" + consulta({ caminho: p.caminho }) }, p.nome), h("br"), h("small", {}, p.pasta)] },
@@ -808,7 +928,7 @@ Paginas.usuarios = async () => {
 const MENU = [
   [null, [["painel", "Painel"]]],
   ["Operação", [["quedas", "Quedas"], ["expurgos", "Expurgos"], ["lacunas", "Lacunas"], ["itens", "Itens medidos"]]],
-  ["Relatórios", [["fechamento", "Fechamento"], ["pdfs", "Arquivos PDF"], ["definicoes", "Definições"]]],
+  ["Relatórios", [["relatorios", "Gerar relatório"], ["fechamento", "Fechamento"], ["pdfs", "Arquivos PDF"], ["definicoes", "Definições"]]],
   ["Sistema", [["tarefas", "Tarefas"], ["servicos", "Serviços e logs"], ["config", "Configuração"], ["backups", "Backups"], ["auditoria", "Auditoria"], ["usuarios", "Usuários"]]],
 ];
 

@@ -4,15 +4,20 @@ Instala ou atualiza os Relatórios de Disponibilidade ENGIE. Use pelo instalar.s
 
 Primeira vez: instala as dependências, copia os programas, pergunta as credenciais, cria o usuário
 do painel, faz a carga inicial e liga os serviços.
-Atualização: rodar de novo troca só os programas e as unidades. Credenciais (env), banco, PDFs,
-usuários, backups e a auditoria nunca são alterados.
-Mudou um IP no env? Rode de novo: refaz o /etc/hosts e os dashboards e reinicia os serviços.
+Atualização: rodar de novo compara o pacote com o que está instalado e mexe só no que mudou: copia
+os arquivos diferentes, instala só as dependências que faltam e reinicia só o serviço afetado.
+Credenciais (env), banco, PDFs, usuários, backups e a auditoria nunca são alterados. Serviço ou timer
+desligado de propósito continua desligado.
+Mudou um IP no env? Rode de novo: refaz o /etc/hosts e os dashboards e reinicia a API e o painel.
 
+--forcar   copia tudo de novo e reinicia os serviços, mesmo sem diferença.
 --raiz PASTA instala dentro de uma pasta em vez de / (usado pelos testes).
 """
 import argparse
 import getpass
+import hashlib
 import ipaddress
+import json
 import os
 import re
 import shutil
@@ -30,7 +35,10 @@ TIMERS = ["relatorios-engie-atualizar.timer", "relatorios-engie-parciais.timer",
 DEPENDENCIAS = ["python3-requests", "sqlite3", "weasyprint"]
 # Arquivos de versões anteriores que mudaram de lugar ou deixaram de existir.
 ANTIGOS = ["test_disp.py", "test_admin.py", "README.md", "systemd/LEIA-ME.txt"]
-IGNORAR = shutil.ignore_patterns("__pycache__", "*.pyc", ".pytest_cache", "relatorios.json")
+# Arquivos que cada serviço carrega na memória: mudou algum, o serviço precisa reiniciar.
+# O admin_web fica de fora de propósito, porque o painel lê esses arquivos a cada pedido.
+CARREGA = {"relatorios-engie-api.service": {"api.py", "disp.py", "relatorio.py", "schema.sql"},
+           "relatorios-engie-admin.service": {"admin.py", "api.py", "disp.py", "schema.sql"}}
 INTERATIVO = sys.stdin.isatty()
 
 
@@ -72,37 +80,116 @@ def rodar(*cmd, **kw):
     return subprocess.run(cmd, check=False, **kw)
 
 
+def resumo_hash(caminho):
+    return hashlib.sha256(caminho.read_bytes()).hexdigest() if caminho.exists() else None
+
+
+def igual(a, b):
+    return b.exists() and a.read_bytes() == b.read_bytes()
+
+
+def arquivos_do_pacote():
+    """Programas do pacote, como caminhos relativos. relatorios.json tem regra própria."""
+    return sorted(p.relative_to(ORIGEM).as_posix() for p in ORIGEM.rglob("*")
+                  if p.is_file() and p.name != "relatorios.json" and p.suffix != ".pyc"
+                  and "__pycache__" not in p.parts and ".pytest_cache" not in p.parts)
+
+
 class Instalacao:
-    def __init__(self, raiz):
+    def __init__(self, raiz, forcar=False):
         self.raiz = Path(raiz)
+        self.forcar = forcar
         self.dest = self.raiz / "etc/relatorios-engie"
         self.systemd = self.raiz / "etc/systemd/system"
         self.hosts = self.raiz / "etc/hosts"
         self.env = self.dest / "env"
+        self.arq_estado = self.dest / "instalacao.json"
         self.pendencias = []
+        self.alteracoes = 0
+        self.mudados = set()
+
+    def ler_estado(self):
+        try:
+            return json.loads(self.arq_estado.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+
+    def gravar_estado(self, **novo):
+        """Tem o hash do env: só root lê. Gravado em duas etapas para um erro no meio não esquecer um reinício."""
+        dados = {**self.ler_estado(), **novo}
+        tmp = self.arq_estado.with_name("instalacao.json.tmp")
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(dados, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, self.arq_estado)
+
+    def contar(self, mensagem):
+        self.alteracoes += 1
+        print(f"  {mensagem}")
 
     def dependencias(self):
         titulo("Dependências")
+        faltam = []
+        for pacote in DEPENDENCIAS:
+            try:
+                r = rodar("dpkg-query", "-W", "-f=${Status}", pacote, capture_output=True, text=True)
+                instalado = r.returncode == 0 and "install ok installed" in r.stdout
+            except OSError:
+                instalado = False
+            if not instalado:
+                faltam.append(pacote)
+        if not faltam:
+            print("  Já instaladas.")
+            return
+        self.contar(f"Instalando: {', '.join(faltam)}")
         amb = dict(os.environ, DEBIAN_FRONTEND="noninteractive")
         rodar("apt-get", "update", "-qq", env=amb)
-        if rodar("apt-get", "install", "-y", "-qq", *DEPENDENCIAS, env=amb).returncode != 0:
+        if rodar("apt-get", "install", "-y", "-qq", *faltam, env=amb).returncode != 0:
             sys.exit("Não foi possível instalar as dependências: confira o acesso aos repositórios do apt.")
 
-    def copiar_programas(self):
+    def atualizar_programas(self):
         titulo("Programas")
         self.dest.mkdir(parents=True, exist_ok=True)
-        shutil.copytree(ORIGEM, self.dest, dirs_exist_ok=True, ignore=IGNORAR)
-        for nome in ANTIGOS:
-            (self.dest / nome).unlink(missing_ok=True)
+        estado = self.ler_estado()
+        pacote = arquivos_do_pacote()
+        antes = self.alteracoes
+        for rel in pacote:
+            origem, destino = ORIGEM / rel, self.dest / rel
+            if self.forcar or not igual(origem, destino):
+                destino.parent.mkdir(parents=True, exist_ok=True)
+                self.contar(f"{'Novo' if not destino.exists() else 'Atualizado'}: {rel}")
+                shutil.copy2(origem, destino)
+                self.mudados.add(rel)
+        # Remove só o que uma versão anterior instalou e saiu do pacote; dados do servidor nunca estão nesta lista.
+        for rel in sorted((set(estado.get("arquivos", [])) | set(ANTIGOS)) - set(pacote)):
+            alvo = (self.dest / rel).resolve()
+            if self.dest.resolve() in alvo.parents and alvo.is_file():
+                alvo.unlink()
+                self.contar(f"Removido: {rel}")
         os.chmod(self.dest / "atualizar.sh", 0o755)
-        # O painel edita relatorios.json: uma atualização não pode apagar essas edições.
-        defs, novas = self.dest / "relatorios.json", ORIGEM / "relatorios.json"
-        if not defs.exists():
+        self.atualizar_definicoes(estado)
+        # Erro daqui em diante: a próxima execução ainda sabe que estes arquivos pedem reinício.
+        self.mudados |= set(estado.get("reiniciar_por", []))
+        self.gravar_estado(arquivos=pacote, reiniciar_por=sorted(self.mudados))
+        if self.alteracoes == antes:
+            print("  Nada mudou.")
+
+    def atualizar_definicoes(self, estado):
+        """O painel edita relatorios.json: só é trocado se ninguém mexeu desde a última instalação."""
+        defs, novas, copia = self.dest / "relatorios.json", ORIGEM / "relatorios.json", self.dest / "relatorios.json.pacote"
+        base = estado.get("relatorios_sha")
+        if not defs.exists() or (base and resumo_hash(defs) == base and not igual(novas, defs)):
+            self.contar(f"{'Novo' if not defs.exists() else 'Atualizado'}: relatorios.json")
             shutil.copy2(novas, defs)
-        elif defs.read_bytes() != novas.read_bytes():
-            shutil.copy2(novas, self.dest / "relatorios.json.pacote")
-            print("  relatorios.json foi mantido. A versão do pacote está em relatorios.json.pacote.")
-        print(f"  Copiados para {self.dest}")
+            base = resumo_hash(novas)
+        if igual(novas, defs):
+            copia.unlink(missing_ok=True)
+            base = resumo_hash(novas)
+        elif not igual(novas, copia):
+            self.contar("relatorios.json tem edições suas e foi mantido. A versão do pacote está em relatorios.json.pacote.")
+            shutil.copy2(novas, copia)
+        if base:
+            self.gravar_estado(relatorios_sha=base)
 
     def ler_env(self):
         out = {}
@@ -192,18 +279,24 @@ class Instalacao:
         if novas != linhas:
             self.hosts.parent.mkdir(parents=True, exist_ok=True)
             self.hosts.write_text("\n".join(novas) + "\n", encoding="utf-8", newline="\n")
-            print(f"  /etc/hosts: {nome} aponta para {ip}")
+            self.contar(f"/etc/hosts: {nome} aponta para {ip}")
 
-    def gerar_dashboards(self, ip):
+    def gerar_dashboards(self, ip, primeira_vez):
         """O Grafana não lê o env: os JSONs do repositório têm um marcador, trocado aqui pelo endereço da API."""
         origem = PACOTE / "grafana"
         destino = self.dest / "grafana"
         destino.mkdir(parents=True, exist_ok=True)
         host = f"[{ip}]" if ":" in ip else ip
+        mudou = False
         for arq in sorted(origem.glob("ENGIE_*.json")):
-            texto = arq.read_text(encoding="utf-8").replace(MARCADOR_API, f"http://{host}:8099")
-            (destino / arq.name).write_text(texto, encoding="utf-8", newline="\n")
-        print(f"  Dashboards para importar no Grafana: {destino}")
+            alvo = destino / arq.name
+            novo = arq.read_text(encoding="utf-8").replace(MARCADOR_API, f"http://{host}:8099").encode("utf-8")
+            if self.forcar or not alvo.exists() or alvo.read_bytes() != novo:
+                alvo.write_bytes(novo)
+                self.contar(f"Dashboard: {arq.name}")
+                mudou = True
+        if mudou and not primeira_vez:
+            self.pendencias.append(f"Os dashboards mudaram: importe de novo os arquivos de {destino} no Grafana.")
 
     def amb_servidor(self):
         return dict(os.environ, PYTHONIOENCODING="utf-8")
@@ -234,36 +327,70 @@ class Instalacao:
     def instalar_unidades(self):
         titulo("Serviços")
         self.systemd.mkdir(parents=True, exist_ok=True)
+        novas, alteradas = [], []
         for u in sorted((ORIGEM / "systemd").iterdir()):
             if u.suffix in (".service", ".timer"):
-                shutil.copy2(u, self.systemd / u.name)
-        rodar("systemctl", "daemon-reload")
-        falhas = [u for u in SEMPRE_LIGADOS + TIMERS if rodar("systemctl", "enable", u).returncode != 0]
-        # restart: numa atualização, os serviços precisam carregar o código novo
-        falhas += [u for u in SEMPRE_LIGADOS if rodar("systemctl", "restart", u).returncode != 0]
-        falhas += [u for u in TIMERS if rodar("systemctl", "start", u).returncode != 0]
-        for u in sorted(set(falhas)):
+                alvo = self.systemd / u.name
+                if not alvo.exists():
+                    novas.append(u.name)
+                elif self.forcar or not igual(u, alvo):
+                    alteradas.append(u.name)
+                else:
+                    continue
+                shutil.copy2(u, alvo)
+                self.contar(f"{'Nova' if u.name in novas else 'Atualizada'}: {u.name}")
+        if novas or alteradas:
+            rodar("systemctl", "daemon-reload")
+
+        falhas = []
+        # Só liga o que é novo: o que já existia e está desligado foi desligado por alguém.
+        for u in SEMPRE_LIGADOS + TIMERS:
+            if u in novas and rodar("systemctl", "enable", "--now", u).returncode != 0:
+                falhas.append(u)
+
+        env_mudou = resumo_hash(self.env) != self.ler_estado().get("env_sha")
+        reiniciar = []
+        for u in SEMPRE_LIGADOS:
+            if u not in novas and (self.forcar or env_mudou or u in alteradas or CARREGA[u] & self.mudados):
+                reiniciar.append(u)
+        reiniciar += [u for u in TIMERS if u in alteradas]      # só assim o timer usa o novo horário
+        for u in reiniciar:
+            # try-restart não religa um serviço que alguém deixou parado
+            if rodar("systemctl", "try-restart", u).returncode != 0:
+                falhas.append(u)
+            else:
+                self.contar(f"Reiniciado: {u}")
+        for u in SEMPRE_LIGADOS:
+            if u not in falhas and rodar("systemctl", "is-active", "--quiet", u).returncode != 0:
+                self.pendencias.append(f"{u} não está no ar. Se não foi de propósito: systemctl start {u}")
+        for u in falhas:
             self.pendencias.append(f"Serviço com problema: {u} (veja com journalctl -u {u})")
-        print("  Serviços e timers instalados.")
+        if not (novas or alteradas or reiniciar):
+            print("  Nada mudou.")
 
     def executar(self):
         primeira_vez = not self.env.exists()
         titulo("Primeira instalação" if primeira_vez else "Atualização")
         self.dependencias()
         ip = self.ip_conhecido()               # lido antes de trocar as unidades
-        self.copiar_programas()
+        self.atualizar_programas()
         if not ip:
             ip = self.perguntar_ip(self.ip_detectado())
         tem_credenciais = self.configurar_env(ip)
         self.aplicar_hosts()
-        self.gerar_dashboards(ip)
+        self.gerar_dashboards(ip, primeira_vez)
         rodar(sys.executable, "disp.py", "init", cwd=self.dest, env=dict(self.amb_servidor(), DISP_DB=str(self.db())),
               stdout=subprocess.DEVNULL)
         self.criar_usuario()
         if primeira_vez and tem_credenciais:
             self.carga_inicial()
         self.instalar_unidades()
+        self.gravar_estado(reiniciar_por=[], env_sha=resumo_hash(self.env))
         titulo("Pronto")
+        if not self.alteracoes:
+            print("  Já estava atualizado: nada foi alterado.")
+        else:
+            print(f"  {self.alteracoes} alteração(ões) aplicada(s).")
         print(f"  Painel: http://{ip}:8098")
         for p in self.pendencias:
             print(f"  Pendente: {p}")
@@ -277,13 +404,14 @@ class Instalacao:
 def main():
     ap = argparse.ArgumentParser(description="Instala ou atualiza os Relatórios de Disponibilidade ENGIE")
     ap.add_argument("--raiz", default="/", help=argparse.SUPPRESS)
+    ap.add_argument("--forcar", action="store_true", help="copia tudo de novo e reinicia os serviços, mesmo sem diferença")
     a = ap.parse_args()
     if a.raiz == "/":
         if os.geteuid() != 0:
             sys.exit("Rode como root.")
         if not shutil.which("apt-get") or not shutil.which("systemctl"):
             sys.exit("Este instalador é para Debian com systemd.")
-    Instalacao(a.raiz).executar()
+    Instalacao(a.raiz, a.forcar).executar()
 
 
 if __name__ == "__main__":

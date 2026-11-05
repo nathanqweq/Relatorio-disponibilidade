@@ -16,6 +16,7 @@ Variáveis do serviço: SERVIDOR_IP (onde atender; ADMIN_HOST tem prioridade; pa
 """
 import argparse
 import base64
+import calendar
 import collections
 import getpass
 import hashlib
@@ -35,7 +36,7 @@ import time
 import traceback
 import urllib.parse
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -60,6 +61,7 @@ CORPO_MAX = 2 * 1024 * 1024
 TAREFA_MAX_SEG = 2 * 3600
 TAREFA_MAX_LINHAS = 20_000
 TAREFAS_GUARDADAS = 50
+MESES_GUARDADOS = 3   # o mesmo "limpar --meses" do atualizar.sh: antes disso, as quedas já foram apagadas
 
 ESTATICOS = {"/": ("index.html", "text/html; charset=utf-8"),
              "/app.js": ("app.js", "text/javascript; charset=utf-8"),
@@ -431,6 +433,30 @@ def periodo_consulta(q):
     return val_mes(q.get("mes") or mes_atual())
 
 
+def menos_meses(d, n):
+    total = d.year * 12 + d.month - 1 - n
+    ano, mes = total // 12, total % 12 + 1
+    return date(ano, mes, min(d.day, calendar.monthrange(ano, mes)[1]))
+
+
+def periodos_prontos(hoje=None):
+    """Períodos oferecidos na tela de gerar relatório, no horário de Brasília."""
+    hoje = hoje or datetime.now(disp.TZ).date()
+    livre = lambda pid, rotulo, de, ate=hoje: {"id": pid, "rotulo": rotulo, "de": de.isoformat(), "ate": ate.isoformat()}
+    anterior = menos_meses(hoje.replace(day=1), 1)
+    fim_semana = hoje - timedelta(days=hoje.isoweekday())       # domingo passado
+    return [
+        livre("7d", "Últimos 7 dias", hoje - timedelta(days=6)),
+        livre("15d", "Últimos 15 dias", hoje - timedelta(days=14)),
+        livre("30d", "Últimos 30 dias", hoje - timedelta(days=29)),
+        livre("semana", "Semana passada", fim_semana - timedelta(days=6), fim_semana),
+        {"id": "mes", "rotulo": "Este mês", "mes": hoje.strftime("%Y-%m"), "de": hoje.replace(day=1).isoformat(), "ate": hoje.isoformat()},
+        {"id": "mes-anterior", "rotulo": "Mês passado", "mes": anterior.strftime("%Y-%m"), "de": anterior.isoformat(),
+         "ate": (hoje.replace(day=1) - timedelta(days=1)).isoformat()},
+        livre("3m", "Últimos 3 meses", menos_meses(hoje, 3)),
+    ]
+
+
 def executar(*args, tempo=180):
     """Roda um comando do projeto (sem shell) e devolve a saída; falha vira erro legível."""
     try:
@@ -709,6 +735,13 @@ def r_listas(c):
             "links": {"Grafana": ler_env()["GRAFANA_URL"]} if ler_env().get("GRAFANA_URL") else {}}
 
 
+@rota("GET", "/periodos")
+def r_periodos(c):
+    hoje = datetime.now(disp.TZ).date()
+    return {"periodos": periodos_prontos(hoje), "hoje": hoje.isoformat(), "meses_guardados": MESES_GUARDADOS,
+            "dados_desde": menos_meses(hoje.replace(day=1), MESES_GUARDADOS).isoformat()}
+
+
 @rota("GET", "/painel")
 def r_painel(c):
     alertas = []
@@ -761,20 +794,38 @@ def r_painel(c):
 
 @rota("GET", "/quedas")
 def r_quedas(c):
-    q = {"relatorio": texto(c.q, "relatorio", "a medição", 100), "mes": periodo_consulta(c.q)}
-    for k in ("item", "grupo"):
-        if c.q.get(k):
-            q[k] = c.q[k]
-    q["ordem"] = "desc"
+    q = {"relatorio": texto(c.q, "relatorio", "a medição", 100), "mes": periodo_consulta(c.q), "ordem": "desc"}
+    if c.q.get("grupo"):
+        q["grupo"] = c.q["grupo"]
     with banco() as conn:
         linhas = api.incidentes(conn, q)
-    if c.q.get("situacao") == "abertas":
+        titulos = dict(conn.execute("SELECT numero, titulo FROM chamados").fetchall())
+    if c.q.get("item"):                     # vem do seletor: é o item exato, não parte do nome
+        linhas = [l for l in linhas if l["ITEM"] == c.q["item"]]
+    for l in linhas:
+        l["CHAMADO_TITULO"] = titulos.get(l["CHAMADO"])
+    if c.q.get("situacao") == "com-chamado":
+        linhas = [l for l in linhas if l["CHAMADO"]]
+    elif c.q.get("situacao") == "abertas":
         linhas = [l for l in linhas if not l["FIM"]]
     elif c.q.get("situacao") == "desconsideradas":
         linhas = [l for l in linhas if l["EXPURGO"]]
     elif c.q.get("situacao") == "contabilizadas":
         linhas = [l for l in linhas if l["EXPURGO"] != "total"]
     return linhas
+
+
+@rota("GET", "/quedas/itens")
+def r_quedas_itens(c):
+    """Opções do seletor: itens da medição e quantas quedas cada um teve no período."""
+    rel = texto(c.q, "relatorio", "a medição", 100)
+    ini, fim = disp.limites_mes(periodo_consulta(c.q))
+    agora = int(time.time())
+    with banco() as conn:
+        return [{"item": r["item"], "quedas": r["n"]} for r in conn.execute(
+            "SELECT o.item, count(i.id) n, o.ativo_ate FROM objetos o LEFT JOIN incidentes i ON i.objeto_id=o.id "
+            "AND i.inicio<? AND coalesce(i.fim,?)>? WHERE o.relatorio=? GROUP BY o.id "
+            "HAVING o.ativo_ate IS NULL OR n>0 ORDER BY o.item", (fim, agora, ini, rel))]
 
 
 @rota("GET", r"/quedas/(\d+)")
@@ -804,6 +855,53 @@ def r_queda(c, iid):
             "inicio": fmt_ts(i["inicio"]), "fim": fmt_ts(i["fim"]), "chamado_numero": i["chamado"],
             "chamado_externo": i["chamado_externo"], "causa": i["causa"], "evento": i["zabbix_eventid"],
             "comentarios": comentarios, "chamado": chamado, "expurgos": expurgos}
+
+
+def norma_chamado(texto):
+    """'i 2611-123' e 'I2611 123' são o mesmo chamado: o número pode ter sido gravado com espaços."""
+    return re.sub(r"[\s-]", "", texto).upper()
+
+
+def separar_chamados(texto, conhecidos):
+    """Devolve os chamados da lista, na ordem e sem repetir. Vírgula, ponto e vírgula e linha sempre separam;
+    espaço só separa quando o trecho inteiro não é um chamado conhecido (o número pode conter espaços)."""
+    pedidos = []
+    for trecho in re.split(r"[\r\n,;]+", texto):
+        trecho = trecho.strip()
+        if trecho:
+            pedidos += [trecho] if norma_chamado(trecho) in conhecidos else trecho.split()
+    return list({norma_chamado(p): p for p in reversed(pedidos)}.values())[::-1]
+
+
+@rota("POST", "/quedas/conferir-chamados")
+def r_conferir_chamados(c):
+    """Só consulta: mostra o que a lista alcança antes de qualquer alteração."""
+    texto_lista = c.b.get("texto")
+    if not isinstance(texto_lista, str) or not texto_lista.strip():
+        raise Erro(400, "informe os números dos chamados")
+    if len(texto_lista) > 20000:
+        raise Erro(400, "lista grande demais")
+    with banco() as conn:
+        conhecidos = {}
+        for r in conn.execute("SELECT DISTINCT chamado FROM incidentes WHERE chamado IS NOT NULL"):
+            conhecidos.setdefault(norma_chamado(r[0]), []).append(r[0])
+        pedidos = separar_chamados(texto_lista, conhecidos)
+        if len(pedidos) > 200:
+            raise Erro(400, "no máximo 200 chamados de cada vez")
+        faltam = [p for p in pedidos if norma_chamado(p) not in conhecidos]
+        numeros = [n for p in pedidos for n in conhecidos.get(norma_chamado(p), [])]
+        quedas = []
+        if numeros:
+            ph = ",".join("?" * len(numeros))
+            agora = int(time.time())
+            for r in conn.execute(
+                    "SELECT i.id, i.chamado, i.inicio, i.fim, o.relatorio, o.item FROM incidentes i "
+                    f"JOIN objetos o ON o.id=i.objeto_id WHERE i.chamado IN ({ph}) ORDER BY i.inicio DESC, o.relatorio", numeros):
+                situacao, _ = disp.situacao_expurgo(conn, r["id"])
+                quedas.append({"id": r["id"], "chamado": r["chamado"], "relatorio": r["relatorio"], "item": r["item"],
+                               "inicio": fmt_ts(r["inicio"]), "fim": fmt_ts(r["fim"]),
+                               "minutos": ((r["fim"] or agora) - r["inicio"]) // 60, "expurgo": situacao})
+    return {"pedidos": len(pedidos), "nao_encontrados": faltam, "quedas": quedas}
 
 
 @rota("POST", "/quedas/desconsiderar")

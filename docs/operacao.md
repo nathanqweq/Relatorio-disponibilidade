@@ -20,11 +20,13 @@ Todos os PDFs ficam em Arquivos PDF, no painel. O sistema não envia e-mail.
 
 | Tarefa | No painel |
 | --- | --- |
-| Não contabilizar uma queda | Quedas → selecione → Desconsiderar |
-| Desfazer | Quedas → selecione → Voltar a contar |
+| Não contabilizar quedas de um item | Quedas → escolha o item → marque → Desconsiderar |
+| Não contabilizar as quedas de vários chamados | Quedas → Por lista de chamados: cole os números, confira e confirme |
+| Desfazer | Quedas → marque → Voltar a contar |
 | Descontar uma manutenção programada | Expurgos → Novo expurgo de janela, depois Aprovar |
 | Registrar período sem monitoramento | Lacunas → Registrar lacuna |
-| Baixar ou gerar um PDF | Arquivos PDF |
+| Gerar um relatório de um período (últimos 7, 15 ou 30 dias, semana ou mês passado, 3 meses, ou outras datas) | Gerar relatório |
+| Baixar um PDF | Arquivos PDF |
 | Rever um mês já fechado | Fechamento → Nova versão |
 | Novo relatório | Definições → Novo relatório |
 | Forçar uma atualização | Painel → Atualizar tudo agora |
@@ -32,10 +34,12 @@ Todos os PDFs ficam em Arquivos PDF, no painel. O sistema não envia e-mail.
 | Mudar token ou senha | Configuração |
 | Copiar o banco | Backups |
 
-Duas regras importantes:
+Três regras importantes:
 
 - **Itens vêm do Zabbix.** Para incluir, tirar ou renomear, altere as tags lá. Tirar o template ou a tag de um host encerra o item no próximo sincronismo: ele continua nos meses em que existiu e some dos seguintes.
 - **Mês fechado não muda sozinho.** Alterar expurgo ou lacuna de um mês fechado não muda o PDF oficial. O painel avisa, e a correção é gerar uma nova versão.
+
+- **Período antigo não tem queda.** A limpeza automática apaga as quedas com mais de 3 meses fechados. Um relatório desse período sairia com disponibilidade maior do que foi de verdade; o painel avisa antes de gerar. Para meses já fechados, vale o PDF oficial guardado em Fechamento.
 
 Um relatório novo usa as medições já existentes ou um id novo marcado nas triggers. Ele entra sozinho no parcial diário e no fechamento.
 
