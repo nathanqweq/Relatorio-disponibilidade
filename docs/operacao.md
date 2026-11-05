@@ -36,7 +36,7 @@ Todos os PDFs ficam em Arquivos PDF, no painel. O sistema não envia e-mail.
 
 Três regras importantes:
 
-- **Itens vêm do Zabbix.** Para incluir, tirar ou renomear, altere as tags lá. Tirar o template ou a tag de um host encerra o item no próximo sincronismo: ele continua nos meses em que existiu e some dos seguintes.
+- **Itens vêm do Zabbix.** Para incluir, tirar ou renomear, altere as tags lá. Tirar o template ou a tag de um host encerra o item no próximo sincronismo: ele continua nos meses em que existiu, inclusive o atual, e some dos seguintes. Para apagá-lo de todos os períodos, use Itens medidos → Remover um item. O painel só remove item encerrado e faz uma cópia do banco antes (em Backups); para desfazer, restaure essa cópia. Quedas do item em meses fechados só saem do PDF oficial com uma nova versão.
 - **Mês fechado não muda sozinho.** Alterar expurgo ou lacuna de um mês fechado não muda o PDF oficial. O painel avisa, e a correção é gerar uma nova versão.
 
 - **Período antigo não tem queda.** A limpeza automática apaga as quedas com mais de 3 meses fechados. Um relatório desse período sairia com disponibilidade maior do que foi de verdade; o painel avisa antes de gerar. Para meses já fechados, vale o PDF oficial guardado em Fechamento.

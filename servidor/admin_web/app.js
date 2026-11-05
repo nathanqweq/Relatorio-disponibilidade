@@ -522,6 +522,59 @@ Paginas.lacunas = async () => {
   ];
 };
 
+function dialogoRemoverItem() {
+  if (!LISTAS.medicoes.length) return toast("Nenhuma medição cadastrada.", "erro");
+  const d = abrirForm({
+    titulo: "Remover um item", botaoTexto: "Conferir",
+    nota: "Primeiro tire a tag da trigger no Zabbix. Nada é alterado nesta etapa.",
+    campos: [
+      { nome: "relatorio", rotulo: "Medição", tipo: "select", opcoes: opcoesMedicao() },
+      { nome: "objeto", rotulo: "Item", tipo: "select", opcoes: [], obrigatorio: true },
+    ],
+    enviar: (v) => conferirRemocao(Number(v.objeto)),
+  });
+  const sel = d.querySelector("[name=relatorio]");
+  const itens = d.querySelector("[name=objeto]");
+  const carregar = async () => {
+    const lista = await api("/itens" + consulta({ relatorio: sel.value, estado: "todos" })).catch(() => []);
+    lista.sort((a, b) => (!a.ate - !b.ate) || a.item.localeCompare(b.item));    // encerrados primeiro
+    itens.replaceChildren(...lista.map((i) => h("option", { value: i.id }, `${i.item}${i.ate ? " (encerrado)" : ""}`)));
+  };
+  sel.addEventListener("change", carregar);
+  carregar();
+}
+
+async function conferirRemocao(id) {
+  const d = await api(`/itens/${id}/remocao`);
+  if (d.ativo) {
+    abrirForm({
+      titulo: `${d.item} ainda está ativo`, campos: [], botaoTexto: "Sincronizar agora", perigo: false,
+      nota: "Com a tag ainda no Zabbix, ele voltaria na próxima sincronização, em até 10 minutos. Tire a tag da trigger, sincronize e tente de novo. Se a tag já saiu, basta sincronizar.",
+      enviar: () => { iniciarTarefa("sync-objetos"); return Promise.resolve(); },
+    });
+    return;
+  }
+  abrirForm({
+    titulo: `Remover ${d.item}`, perigo: true, botaoTexto: "Remover definitivamente",
+    nota: "O item some de todos os períodos, inclusive dos anteriores, e as médias da medição mudam. O painel faz uma cópia do banco antes.",
+    conteudo: h("dl", { classe: "dados", style: "margin-bottom:12px" },
+      h("dt", {}, "Medição"), h("dd", {}, d.relatorio),
+      h("dt", {}, "Quedas"), h("dd", {}, d.incidentes),
+      h("dt", {}, "Comentários"), h("dd", {}, d.comentarios),
+      h("dt", {}, "Expurgos"), h("dd", {}, d.expurgos),
+      h("dt", {}, "Chamados ligados"), h("dd", {}, d.chamados)),
+    campos: d.meses_fechados.length ? [{
+      nome: "incluir_fechados", tipo: "marcar",
+      rotulo: `Apagar também os valores congelados de ${d.meses_fechados.join(", ")}. O PDF oficial só muda se você gerar uma nova versão.`,
+    }] : [],
+    enviar: async (v) => {
+      const r = await api(`/itens/${id}/remover`, { incluir_fechados: v.incluir_fechados === true });
+      await carregarListas();
+      return r;
+    },
+  });
+}
+
 Paginas.itens = async () => {
   const f = barraFiltros("itens", [
     { nome: "relatorio", rotulo: "Medição", tipo: "select", opcoes: opcoesMedicao(true) },
@@ -532,8 +585,8 @@ Paginas.itens = async () => {
   const linhas = await api("/itens" + consulta(f.estado));
   const pct = (v) => (v === null || v === undefined ? "-" : v.toFixed(2).replace(".", ",") + "%");
   return [
-    cabecalho("Itens medidos", botao("Sincronizar com o Zabbix", () => iniciarTarefa("sync-objetos"), "primario")),
-    h("p", { classe: "nota" }, "Os itens vêm das tags das triggers no Zabbix: para incluir, tirar ou renomear, altere lá. A sincronização roda a cada 10 minutos."),
+    cabecalho("Itens medidos", botao("Remover um item", dialogoRemoverItem), botao("Sincronizar com o Zabbix", () => iniciarTarefa("sync-objetos"), "primario")),
+    h("p", { classe: "nota" }, "Os itens vêm das tags das triggers no Zabbix: para incluir, tirar ou renomear, altere lá. A sincronização roda a cada 10 minutos. Sem a tag, o item é encerrado: some dos meses seguintes, mas continua nos meses em que existiu, até você removê-lo."),
     f.el,
     h("div", { classe: "cartao" }, h("p", { classe: "nota" }, `${linhas.length} item(ns)`), tabela([
       { titulo: "Medição", valor: (i) => i.relatorio },
@@ -545,6 +598,7 @@ Paginas.itens = async () => {
       { titulo: "Quedas", classe: "num", valor: (i) => i.quedas },
       { titulo: "Min. fora", classe: "num", valor: (i) => i.minutos_fora },
       { titulo: "Disponib.", classe: "num", valor: (i) => pct(i.disponibilidade) },
+      { titulo: "", valor: (i) => (i.ate ? pequeno("Remover", () => acao(() => conferirRemocao(i.id)), "perigo") : null) },
     ], linhas, { vazio: "Nenhum item com estes filtros." })),
   ];
 };
@@ -722,6 +776,7 @@ const CATALOGO = [
   { tipo: "limpar", titulo: "Limpar dados antigos", texto: "Apaga de vez quedas, expurgos, lacunas e chamados antigos. Faça uma cópia antes.", perigo: true,
     aviso: (v) => `Os dados anteriores aos últimos ${v.meses} meses serão apagados definitivamente. O timer usa 3 meses.`,
     campos: [{ nome: "meses", rotulo: "Meses a manter", tipo: "number", valor: 3, min: 1, max: 120, obrigatorio: true }] },
+  { titulo: "Remover um item", texto: "Apaga de vez um item e suas quedas, de todos os períodos. Primeiro tire a tag da trigger no Zabbix.", perigo: true, abrir: dialogoRemoverItem },
   { tipo: "criar-triggers", titulo: "Simular triggers TID", texto: "Mostra as triggers que faltam nos hosts ENGIE APP - TID, sem criar nada." },
   { tipo: "criar-triggers", titulo: "Criar triggers TID", texto: "Cria no Zabbix as triggers que faltam. Rode a simulação antes.", perigo: true, parametros: { aplicar: true },
     aviso: () => "As triggers serão criadas no Zabbix de verdade." },
@@ -737,6 +792,7 @@ Paginas.tarefas = async () => {
     const form = h("form", {
       classe: "tarefa", onsubmit: (ev) => {
         ev.preventDefault();
+        if (t.abrir) return t.abrir();
         const v = { ...lerForm(form), ...(t.parametros || {}) };
         if (t.perigo) {
           confirmar({ titulo: t.titulo, texto: t.aviso(v), botaoTexto: "Executar",

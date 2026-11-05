@@ -303,6 +303,41 @@ def test_itens_filtra_e_marca_macro(cli):
     assert por["GA_A"]["disponibilidade"] < 100
 
 
+def test_remover_item_pelo_painel(cli, srv):
+    db = sqlite3.connect(srv[1] / "disponibilidade.db")
+    db.execute("INSERT INTO objetos (id, relatorio, item, nome, ativo_desde, ativo_ate) VALUES (50,'tid-usinas','SAIU','SAIU',0,1785000000)")
+    db.execute("INSERT INTO incidentes (id, objeto_id, zabbix_eventid, inicio, fim) VALUES (50,50,'saiu',1784000000,1784003600)")
+    db.commit()
+    db.close()
+    s, d = cli.get("/api/itens/50/remocao")
+    assert s == 200 and d["item"] == "SAIU" and not d["ativo"] and d["incidentes"] == 1
+    assert any(i["id"] == 50 for i in cli.get("/api/itens?estado=encerrados")[1])
+
+    s, d = cli.post("/api/itens/50/remover")
+    assert s == 200, d
+    assert "SAIU" in d["mensagem"] and "antes-de-remover-item" in d["mensagem"]
+    assert cli.get("/api/itens/50/remocao")[0] == 404
+    assert not any(l["ITEM"] == "SAIU" for l in cli.get(f"/api/quedas?relatorio=tid-usinas&mes={MES_PASSADO}")[1])
+    copias = [b["nome"] for b in cli.get("/api/backups")[1] if b["nome"].startswith("antes-de-remover-item")]
+    assert copias                                               # dá para desfazer: a cópia ainda tem o item
+    c = sqlite3.connect(srv[1] / "backups" / copias[0])
+    assert c.execute("SELECT count(*) FROM objetos WHERE id=50").fetchone()[0] == 1
+    c.close()
+    painel = cli.get("/api/auditoria")[1]["painel"][0]
+    assert painel["acao"] == "item-remover" and painel["usuario"] == "ana" and painel["detalhe"]["item"] == "SAIU"
+    for b in copias:
+        assert cli.post("/api/backups/remover", {"nome": b})[0] == 200
+
+
+def test_remover_item_ativo_nao_apaga_nem_copia(cli):
+    antes = len(cli.get("/api/backups")[1])
+    s, d = cli.post("/api/itens/1/remover")
+    assert s == 400 and "ativo" in d["erro"]
+    assert cli.get("/api/itens/1/remocao")[1]["item"] == "GA_A"
+    assert len(cli.get("/api/backups")[1]) == antes
+    assert cli.post("/api/itens/9999/remover")[0] == 404
+
+
 def test_config_nao_expoe_segredo(cli, srv):
     s, corpo, _ = cli.pedir("/api/config")
     assert s == 200 and SEGREDO.encode() not in corpo

@@ -26,6 +26,7 @@ Comandos
     python3 disp.py expurgo-revogar  --id 3 --por nome
     python3 disp.py lacuna           --inicio ... --fim ... --motivo ... --por ... [--relatorio X]
     python3 disp.py limpar           [--meses 3] [--incluir-fechamentos]
+    python3 disp.py remover-item     --id 12 --por nome [--incluir-fechados]   (item encerrado: apaga de vez)
     python3 disp.py importar-chamados [--dias 45] [--chamado I2610-123]   (TOPdesk: ações dos analistas)
     python3 disp.py chamado I2610-123
 
@@ -685,6 +686,55 @@ def limpar(conn, meses, agora=None, incluir_fechamentos=False):
     return corte_mes, n
 
 
+def contagem_item(conn, objeto_id):
+    """O que uma remoção apagaria. None se o item não existe."""
+    o = conn.execute("SELECT * FROM objetos WHERE id=?", (objeto_id,)).fetchone()
+    if not o:
+        return None
+    um = lambda sql: conn.execute(sql, (objeto_id,)).fetchone()[0]
+    return {"id": o["id"], "relatorio": o["relatorio"], "item": o["item"], "ativo": o["ativo_ate"] is None,
+            "incidentes": um("SELECT count(*) FROM incidentes WHERE objeto_id=?"),
+            "comentarios": um("SELECT count(*) FROM comentarios WHERE incidente_id IN (SELECT id FROM incidentes WHERE objeto_id=?)"),
+            "expurgos": um("SELECT count(*) FROM expurgos WHERE objeto_id=?"),
+            "chamados": um("SELECT count(DISTINCT chamado) FROM incidentes WHERE objeto_id=?"),
+            "meses_fechados": [r[0] for r in conn.execute(
+                "SELECT DISTINCT f.mes FROM fechamento_valores v JOIN fechamentos f ON f.id=v.fechamento_id "
+                "WHERE v.objeto_id=? ORDER BY 1", (objeto_id,))]}
+
+
+def remover_item(conn, objeto_id, por, incluir_fechados=False):
+    """Apaga o item e tudo o que é só dele. Não mexe nos expurgos que valem para a medição inteira.
+    Item ativo é recusado: com a tag ainda no Zabbix, ele voltaria na próxima sincronização."""
+    c = contagem_item(conn, objeto_id)
+    if not c:
+        raise SystemExit("item não encontrado")
+    if c["ativo"]:
+        raise SystemExit(f"{c['item']} ainda está ativo: tire a tag da trigger no Zabbix e sincronize antes de remover")
+    if c["meses_fechados"] and not incluir_fechados:
+        raise SystemExit(f"{c['item']} faz parte do fechamento de {', '.join(c['meses_fechados'])}: confirme para incluir os valores congelados")
+    chamados = [r[0] for r in conn.execute("SELECT DISTINCT chamado FROM incidentes WHERE objeto_id=? AND chamado IS NOT NULL", (objeto_id,))]
+    dele = "SELECT id FROM incidentes WHERE objeto_id=?"
+    try:
+        conn.execute(f"DELETE FROM comentarios WHERE incidente_id IN ({dele})", (objeto_id,))
+        conn.execute("DELETE FROM expurgos WHERE objeto_id=?", (objeto_id,))
+        conn.execute(f"UPDATE expurgos SET incidente_id=NULL WHERE incidente_id IN ({dele})", (objeto_id,))
+        conn.execute("DELETE FROM incidentes WHERE objeto_id=?", (objeto_id,))
+        conn.execute("DELETE FROM objeto_triggers WHERE objeto_id=?", (objeto_id,))
+        conn.execute("DELETE FROM fechamento_valores WHERE objeto_id=?", (objeto_id,))
+        conn.execute("DELETE FROM objetos WHERE id=?", (objeto_id,))
+        for n in chamados:                  # chamado que era só deste item não tem mais função
+            if not conn.execute("SELECT 1 FROM incidentes WHERE chamado=? LIMIT 1", (n,)).fetchone():
+                conn.execute("DELETE FROM chamado_acoes WHERE chamado=?", (n,))
+                conn.execute("DELETE FROM chamados WHERE numero=?", (n,))
+        conn.execute("INSERT INTO auditoria (tabela, registro, acao, antes, depois) VALUES ('objetos',?,'delete',?,?)",
+                     (objeto_id, json.dumps(c, ensure_ascii=False), json.dumps({"por": por}, ensure_ascii=False)))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    return c
+
+
 # ------------------------------------------------------------ CLI ----
 
 def main():
@@ -760,6 +810,10 @@ def main():
     s.add_argument("--chamado", action="append", help="só este(s) número(s)")
     s = sub.add_parser("chamado", help="mostra um chamado e as ações gravadas")
     s.add_argument("numero")
+    s = sub.add_parser("remover-item", help="apaga de vez um item encerrado e tudo o que é só dele")
+    s.add_argument("--id", type=int, required=True, help="id do item (objeto)")
+    s.add_argument("--por", required=True)
+    s.add_argument("--incluir-fechados", action="store_true", help="apaga também os valores congelados de meses fechados")
     s = sub.add_parser("lacuna")
     s.add_argument("--relatorio")
     s.add_argument("--inicio", required=True)
@@ -903,6 +957,9 @@ def main():
             print(f"\n  {fmt(x['clock'])}  {x['autor'] or '-'}{'' if x['analista'] else ' (solicitante/sistema)'}")
             print("    " + (x["texto"] or "").replace("\n", "\n    "))
         print(f"\n  ação no relatório: {acao_principal(conn, a.numero) or '-'}")
+    elif a.cmd == "remover-item":
+        c = remover_item(conn, a.id, a.por, a.incluir_fechados)
+        print(f"{c['relatorio']} / {c['item']} removido: {c['incidentes']} queda(s), {c['expurgos']} expurgo(s)")
     elif a.cmd == "lacuna":
         conn.execute("INSERT INTO lacunas (relatorio, inicio, fim, motivo, criado_por) VALUES (?,?,?,?,?)",
                      (a.relatorio, epoch(a.inicio), epoch(a.fim), a.motivo, a.por))

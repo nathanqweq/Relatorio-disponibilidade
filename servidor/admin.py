@@ -1086,6 +1086,34 @@ def r_itens(c):
     return out
 
 
+@rota("GET", r"/itens/(\d+)/remocao")
+def r_item_remocao(c, oid):
+    with banco() as conn:
+        d = disp.contagem_item(conn, int(oid))
+    if not d:
+        raise Erro(404, "item não encontrado")
+    return d
+
+
+@rota("POST", r"/itens/(\d+)/remover")
+def r_item_remover(c, oid):
+    with banco() as conn:
+        d = disp.contagem_item(conn, int(oid))
+    if not d:
+        raise Erro(404, "item não encontrado")
+    incluir = c.b.get("incluir_fechados") is True
+    if d["ativo"] or (d["meses_fechados"] and not incluir):     # recusa antes de fazer uma cópia à toa
+        with banco() as conn:
+            disp.remover_item(conn, int(oid), c.usuario, incluir)
+    copia = copiar_banco("antes-de-remover-item")
+    argv = ["disp.py", "remover-item", f"--id={int(oid)}", f"--por={c.usuario}"]
+    saida = executar(*argv, *(["--incluir-fechados"] if incluir else []))
+    c.registrar("item-remover", copia=copia.name, incluir_fechados=incluir, **{k: d[k] for k in (
+        "relatorio", "item", "incidentes", "comentarios", "expurgos", "chamados", "meses_fechados")})
+    return {"mensagem": f"{saida} Cópia do banco antes da remoção: {copia.name}",
+            "aviso": aviso_fechados(d["meses_fechados"])}
+
+
 @rota("GET", "/fechamentos")
 def r_fechamentos(c):
     mes = val_mes(c.q.get("mes") or mes_anterior())
@@ -1306,10 +1334,9 @@ def caminho_backup(nome):
     return p
 
 
-@rota("POST", "/backups")
-def r_backup_novo(c):
+def copiar_banco(nome):
     BACKUPS.mkdir(exist_ok=True)
-    destino = BACKUPS / f"disponibilidade-{carimbo()}.db"
+    destino = BACKUPS / f"{nome}-{carimbo()}.db"
     origem = sqlite3.connect(caminho_db(), timeout=30)
     copia = sqlite3.connect(destino)
     try:
@@ -1318,6 +1345,12 @@ def r_backup_novo(c):
         copia.close()
         origem.close()
     os.chmod(destino, 0o600)
+    return destino
+
+
+@rota("POST", "/backups")
+def r_backup_novo(c):
+    destino = copiar_banco("disponibilidade")
     c.registrar("backup-criar", arquivo=destino.name)
     return {"mensagem": f"Cópia criada: {destino.name}"}
 

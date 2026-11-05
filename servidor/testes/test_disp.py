@@ -111,6 +111,64 @@ def test_agregacao_por_grupo(conn):
     assert g["EMBRATEL"] == 1.0
 
 
+def preparar_remocao(c):
+    """Item 1 encerrado, com tudo ligado a ele; item 2 divide um chamado com ele."""
+    c.execute("UPDATE objetos SET ativo_ate=? WHERE id=1", (FIM,))
+    c.execute("INSERT INTO objeto_triggers (objeto_id, triggerid) VALUES (1,'t1'),(2,'t2')")
+    c.execute("INSERT INTO incidentes (id, objeto_id, zabbix_eventid, inicio, fim, chamado) VALUES "
+              "(1,1,'a',?,?,'SO_DELE'),(2,1,'b',?,?,'DIVIDIDO'),(3,2,'c',?,?,'DIVIDIDO')",
+              (INI + H, INI + 2 * H, INI + 3 * H, INI + 4 * H, INI + 5 * H, INI + 6 * H))
+    c.execute("INSERT INTO comentarios (incidente_id, clock, mensagem) VALUES (1,1,'x'),(3,1,'y')")
+    c.execute("INSERT INTO chamados (numero) VALUES ('SO_DELE'),('DIVIDIDO')")
+    c.execute("INSERT INTO chamado_acoes (id, chamado, texto) VALUES ('a1','SO_DELE','t'),('a2','DIVIDIDO','t')")
+    for ob, rel, inc in ((1, None, 1), (None, "links", 2), (2, None, 3)):        # do item, da medição, de outro item
+        c.execute("INSERT INTO expurgos (objeto_id, relatorio, incidente_id, inicio, fim, tipo, motivo, proposto_por, status) "
+                  "VALUES (?,?,?,?,?,'outro','m','p','aprovado')", (ob, rel, inc, INI, INI + H))
+    c.commit()
+
+
+def conta(c, tabela):
+    return c.execute(f"SELECT count(*) FROM {tabela}").fetchone()[0]
+
+
+def test_remover_item_apaga_so_o_que_e_dele(conn):
+    preparar_remocao(conn)
+    d = disp.contagem_item(conn, 1)
+    assert (d["incidentes"], d["comentarios"], d["expurgos"], d["chamados"]) == (2, 1, 1, 2)
+    disp.remover_item(conn, 1, "ana")
+    assert [r[0] for r in conn.execute("SELECT id FROM objetos ORDER BY 1")] == [2, 3]
+    assert [r[0] for r in conn.execute("SELECT id FROM incidentes")] == [3]
+    assert [r[0] for r in conn.execute("SELECT triggerid FROM objeto_triggers")] == ["t2"]   # não importa mais os eventos
+    assert [r[0] for r in conn.execute("SELECT mensagem FROM comentarios")] == ["y"]
+    assert [r[0] for r in conn.execute("SELECT numero FROM chamados")] == ["DIVIDIDO"]       # o que outro item usa fica
+    assert [r[0] for r in conn.execute("SELECT id FROM chamado_acoes")] == ["a2"]
+    exp = conn.execute("SELECT objeto_id, relatorio, incidente_id FROM expurgos ORDER BY id").fetchall()
+    assert [tuple(e) for e in exp] == [(None, "links", None), (2, None, 3)]                  # o da medição inteira fica
+    aud = conn.execute("SELECT * FROM auditoria WHERE tabela='objetos'").fetchone()
+    assert aud["acao"] == "delete" and "UHSA_OI" in aud["antes"] and "ana" in aud["depois"]
+    assert "UHSA_OI" not in por_item(disp.calcular(conn, "links", MES, agora=FIM + 10))
+
+
+def test_remover_item_ativo_e_recusado(conn):
+    with pytest.raises(SystemExit, match="ainda está ativo"):
+        disp.remover_item(conn, 2, "ana")
+    assert conta(conn, "objetos") == 3
+    with pytest.raises(SystemExit, match="não encontrado"):
+        disp.remover_item(conn, 99, "ana")
+
+
+def test_remover_item_de_mes_fechado_exige_confirmacao(conn):
+    preparar_remocao(conn)
+    conn.execute("INSERT INTO fechamentos (id, relatorio, mes, versao, gerado_por) VALUES (1,'links',?,1,'s')", (MES,))
+    conn.execute("INSERT INTO fechamento_valores (fechamento_id, objeto_id, segundos_periodo, segundos_fora, segundos_expurgo) VALUES (1,1,1,0,0),(1,2,1,0,0)")
+    conn.commit()
+    with pytest.raises(SystemExit, match=MES):
+        disp.remover_item(conn, 1, "ana")
+    assert conta(conn, "incidentes") == 3 and conta(conn, "objetos") == 3        # recusou sem apagar nada
+    disp.remover_item(conn, 1, "ana", incluir_fechados=True)
+    assert conta(conn, "fechamento_valores") == 1 and conta(conn, "fechamentos") == 1
+
+
 def test_gravar_incidente_idempotente(conn):
     for _ in range(2):
         disp.gravar_incidente(conn, "links", "UHSA_OI", "900", None, INI + H, None, 4, "down")
